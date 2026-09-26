@@ -120,6 +120,8 @@ PLAN이 있고 막힌 질문(보안·범위·데이터 손실)이 없으면 부�
 
 구현을 CLI에 넘길 때만 [workers.md](workers.md)의 PowerShell 경로를 쓴다.
 
+단계 모델 기본값: `explorer`=`cursor-grok-4.6-high`, `planner`=`claude-opus-5-thinking-high`, `tasker`=`claude-sonnet-5-thinking-medium`, `worker`=`composer-2.5`, `reviewer`=`claude-sonnet-5-thinking-high`, `cli-delegate`=`inherit`. 바꾸려면 `.cursor/agents/<에이전트>.md`의 `model` 또는 `/matt-pocock-atomic-config`.
+
 ## 워크트리
 
 조건이 맞을 때만 만든다. 항상 만들라는 뜻이 아니다. 단일 워커 순차 작업은 기본 작업공간/브랜치에서 진행하여 오버헤드를 최소화한다.
@@ -175,7 +177,7 @@ Pi에서는 워크트리를 만든 뒤 그 경로를 작업 `cwd`로 쓴다. Cur
 
 ## 단계 스킬 (강제)
 
-스킬에는 모델이 없다. 모델은 `settings.json`의 `subagents.agentOverrides.<에이전트>`에만 있다. 그래서 단계 에이전트를 유지하고, 그 에이전트가 스킬을 읽도록 강제한다.
+스킬에는 모델이 없다. Pi 모델은 `settings.json`의 `subagents.agentOverrides.<에이전트>`, Cursor 모델은 `.cursor/agents/<에이전트>.md`의 `model`에 있다. 기본 프리셋은 [models.md](models.md). 단계 에이전트를 띄우고 그 에이전트가 스킬을 읽는다.
 
 필요한 matt-pocock 스킬은 이 Pi 패키지에 번들되며 설치 시 함께 발견된다. 자식 frontmatter는 `inheritSkills: false` + 아래 `skills`를 사용한다. 필수 스킬이 없으면 성공한 척 fallback하지 말고 패키지 설치/리소스 상태를 보고한다. `setup-matt-pocock-skills`와 `implement`는 자동 파이프라인에 넣지 않는다.
 

@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import test from "node:test";
 import {
   AGENT_NAMES,
+  CURSOR_AGENT_MODELS,
   convertAgent,
   convertCommand,
   generateCursorFiles,
@@ -59,7 +60,11 @@ test("cursor agent frontmatter follows Cursor subagent schema", async () => {
     const meta = parseFrontmatter(body, file);
     assert.equal(meta.name, name, `${file} name must match filename`);
     assert.ok(meta.description && meta.description.length > 0, `${file} must have a description`);
-    assert.equal(meta.model, "inherit", `${file} must default to inherit model`);
+    assert.equal(
+      meta.model,
+      CURSOR_AGENT_MODELS[name],
+      `${file} must use the packaged default model ${CURSOR_AGENT_MODELS[name]}`
+    );
     assert.equal(meta.readonly, "false", `${file} must be writable (agents write artifacts)`);
     assert.equal(meta.is_background, "true", `${file} must run in background like Pi async agents`);
     for (const key of PI_ONLY_KEYS) {
@@ -103,6 +108,9 @@ test("cursor commands mirror every Pi prompt without frontmatter", async () => {
 test("convert functions stay pure and deterministic", async () => {
   const source = await readFile("agents/worker.md", "utf8");
   assert.equal(convertAgent("worker", source), convertAgent("worker", source));
+  assert.match(convertAgent("worker", source), /^model: composer-2\.5$/m);
+  const planner = await readFile("agents/planner.md", "utf8");
+  assert.match(convertAgent("planner", planner), /^model: claude-opus-5-thinking-high$/m);
   const prompt = await readFile("prompts/matt-pocock-atomic-plan.md", "utf8");
   assert.equal(
     convertCommand("matt-pocock-atomic-plan", prompt),

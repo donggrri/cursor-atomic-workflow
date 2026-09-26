@@ -19,9 +19,18 @@ const here = dirname(fileURLToPath(import.meta.url));
 
 export const AGENT_NAMES = ["explorer", "planner", "tasker", "worker", "reviewer", "cli-delegate"];
 
+/** Cursor 서브에이전트 단계별 기본 모델. 설치 후 `.cursor/agents/<name>.md`의 `model`에 기록된다. */
+export const CURSOR_AGENT_MODELS = {
+  explorer: "cursor-grok-4.6-high",
+  planner: "claude-opus-5-thinking-high",
+  tasker: "claude-sonnet-5-thinking-medium",
+  worker: "composer-2.5",
+  reviewer: "claude-sonnet-5-thinking-high",
+  "cli-delegate": "inherit"
+};
+
 // Pi agents/*.md 는 async:true 로 동작하므로 Cursor에서도 백그라운드가 기본이다.
 export const CURSOR_AGENT_DEFAULTS = {
-  model: "inherit",
   readonly: false,
   is_background: true
 };
@@ -94,11 +103,12 @@ export function convertAgent(name, sourceText) {
   if (!map.description) throw new Error(`agents/${name}.md must have a description`);
 
   const description = `${map.description}${AGENT_DESCRIPTION_SUFFIX[name] || ""}`;
+  const model = CURSOR_AGENT_MODELS[name] || "inherit";
   const header = [
     "---",
     `name: ${name}`,
     `description: ${quote(description)}`,
-    `model: ${CURSOR_AGENT_DEFAULTS.model}`,
+    `model: ${model}`,
     `readonly: ${CURSOR_AGENT_DEFAULTS.readonly}`,
     `is_background: ${CURSOR_AGENT_DEFAULTS.is_background}`,
     "---",
@@ -111,7 +121,7 @@ export function convertAgent(name, sourceText) {
     "",
     `이 에이전트는 Cursor Task 툴에서 \`/${name}\` 또는 "Use the ${name} subagent ..." 지시로 호출한다. ` +
       "호출할 때 필요한 스킬 경로를 프롬프트 첫 줄에 함께 적는다(스킬은 설명 관련성에 따라 자동 첨부되기도 한다). " +
-      "단계별 모델을 고정하려면 이 파일 frontmatter의 `model`을 직접 지정한다(예: `composer-2.5[]`).",
+      `기본 모델은 \`${model}\`이다. 바꾸려면 이 파일 frontmatter의 \`model\`을 고친다.`,
     ""
   ].join("\n");
 

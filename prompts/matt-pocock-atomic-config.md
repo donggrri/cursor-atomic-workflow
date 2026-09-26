@@ -2,35 +2,39 @@
 description: matt-pocock-atomic-workflow 설정(모델, 폴백, 스킬 등)을 조회하고 대화형으로 변경/초기화한다.
 argument-hint: "[show | init | <agent> <model>]"
 ---
-`matt-pocock-atomic-workflow` 스킬을 참고하여 matt-pocock-atomic-workflow 관련 설정을 확인하고 관리한다.
+`matt-pocock-atomic-workflow` 스킬과 `models.md`를 참고하여 matt-pocock-atomic-workflow 관련 설정을 확인하고 관리한다.
 
 인자: ${@:-show}
 
+하네스를 가른다. `PI_CODING_AGENT` 또는 `PI_SESSION_ID`가 있으면 **Pi**. 아니면 **Cursor**.
+
+기본 프리셋:
+
+| 에이전트 | Cursor | Pi |
+|---|---|---|
+| explorer | `cursor-grok-4.6-high` | `xai/grok-4.6` |
+| planner | `claude-opus-5-thinking-high` | `antigravity/claude-sonnet-4-6` |
+| tasker | `claude-sonnet-5-thinking-medium` | `cursor/composer-2.5` |
+| worker | `composer-2.5` | `cursor/composer-2.5` |
+| reviewer | `claude-sonnet-5-thinking-high` | `antigravity/claude-sonnet-4-6` |
+| tester | `composer-2.5` 권장 | `cursor/composer-2.5` |
+| cli-delegate | `inherit` | `antigravity/gemini-3-8-flash:high` |
+
 동작 규칙:
-1. `~/.pi/agent/settings.json`(및 현재 프로젝트 `.pi/settings.json`이 있으면 함께)을 읽는다.
-2. 현재 `subagents.agentOverrides`에 등록된 matt-pocock-atomic-workflow 에이전트 설정 현황을 정리해 보여준다:
-   - `explorer` (Phase 0 탐색)
-   - `planner` (Phase 1 계획)
-   - `tasker` (Phase 2 태스크)
-   - `worker` (Phase 3 실행)
-   - `reviewer` (Phase 4 검토)
-   - 기타 빌트인 에이전트(`scout`, `oracle`, `delegate` 등)
-   - `packages` 목록
-   - 설치된 패키지 안의 번들 스킬 `grilling`, `domain-modeling`, `codebase-design`, `wayfinder`, `to-tickets`, `tdd`, `code-review` 발견 여부
-3. 인자 또는 사용자 요청에 따른 처리:
-   - `show` (기본값):
-     - **설정이 이미 존재하는 경우**: 현재 설정 상태를 보기 쉬운 표로 출력하고 수정 옵션을 안내한다.
-     - **설정이 비어 있거나 미설정인 경우**:
-       1. `pi --list-models` 등으로 현재 환경에서 사용 가능한 Provider 및 주요 모델을 확인한다.
-       2. 사용자에게 사용 가능한 주요 모델 목록과 함께 matt-pocock-atomic-workflow 단계별 최적 추천 프리셋(예: Antigravity 조합, 혼합 성능 최적화 조합 등)을 제시하고 선택할 수 있도록 안내한다.
-       3. 사용자의 선택 또는 답변에 따라 `settings.json`의 `subagents.agentOverrides`를 즉시 생성 및 저장한다.
-   - `init`: `settings.example.json`을 기반으로 `~/.pi/agent/settings.json`의 `subagents.agentOverrides`를 안전하게 병합/초기화한다. 기존 `packages`, `skills`, 기타 설정은 보존한다. 번들 스킬 때문에 외부 `~/.codex/skills` 경로를 추가하지 않는다.
-   - `<agent> <model>`: 지정된 에이전트의 `model`(및 필요시 `fallbackModels`)을 `settings.json`에 직접 업데이트한다.
-   - 사용자가 대화로 특정 단계 모델 변경을 요청하면 이를 파악하여 `settings.json`을 올바르게 수정한다.
-4. 주의사항:
-   - 에이전트 `.md` 파일의 frontmatter를 직접 수정하지 말고 반드시 `settings.json`의 `subagents.agentOverrides`를 수정한다.
-   - JSON 문법이 깨지지 않도록 유효성을 확인한 후 저장한다.
-   - 수정 후에는 Pi 재시작 시 적용됨을 안내한다.
-   - 필수 번들 스킬이 없으면 fallback 성공으로 표시하지 말고 패키지 revision/설치 상태를 점검하라고 안내한다.
+1. **Cursor**면 `.cursor/agents/*.md`의 `model` frontmatter를 읽는다. **Pi**면 `~/.pi/agent/settings.json`(및 프로젝트 `.pi/settings.json`)의 `subagents.agentOverrides`를 읽는다.
+2. 단계 에이전트 현황을 표로 보여준다: `explorer`, `planner`, `tasker`, `worker`, `reviewer`, `tester`(Pi), `cli-delegate`. 기본 프리셋과 다르면 표시한다.
+3. 인자 또는 사용자 요청:
+   - `show` (기본값): 현재 값을 표로 출력하고 수정 옵션을 안내한다. 비어 있으면 위 기본 프리셋을 제안한다.
+   - `init`:
+     - Cursor: `.cursor/agents/<에이전트>.md`의 `model`을 위 Cursor 기본값으로 맞춘다. Pi `agents/*.md`는 건드리지 않는다.
+     - Pi: `settings.example.json`을 `~/.pi/agent/settings.json`의 `agentOverrides`에 안전하게 병합한다. 기존 `packages`, `skills`는 보존한다.
+   - `<agent> <model>`:
+     - Cursor: 해당 `.cursor/agents/<agent>.md`의 `model:`만 바꾼다.
+     - Pi: `settings.json`의 해당 `agentOverrides`만 바꾼다.
+4. 주의:
+   - Pi 에이전트 `.md` frontmatter에 `model`을 넣지 않는다.
+   - Cursor는 `fallbackModels`가 없다.
+   - JSON/YAML이 깨지지 않게 저장한다.
+   - Pi는 재시작 또는 새 대화 후 적용됨을 안내한다.
 
 한국어로 명확하고 친절하게 결과를 보고한다.

@@ -214,7 +214,15 @@ test("settings example keys are unique and match agents", async () => {
   for (const name of Object.keys(workflowAgents)) {
     assert.ok(keys.includes(name), `settings.example.json must include ${name}`);
     assert.ok(!keys.includes(`g-${name}`), `settings.example.json must not keep g-${name}`);
+    const entry = parsed.subagents.agentOverrides[name];
+    assert.ok(entry.model && !String(entry.model).startsWith("YOUR_"), `${name} must have a real default model`);
+    assert.ok(Array.isArray(entry.fallbackModels), `${name} must list fallbackModels`);
   }
+  assert.doesNotMatch(raw, /YOUR_/, "settings.example.json must not keep YOUR_* placeholders");
+  assert.equal(parsed.subagents.agentOverrides.explorer.model, "xai/grok-4.6");
+  assert.equal(parsed.subagents.agentOverrides.planner.model, "antigravity/claude-sonnet-4-6");
+  assert.equal(parsed.subagents.agentOverrides.worker.model, "cursor/composer-2.5");
+  assert.equal(parsed.subagents.agentOverrides.reviewer.model, "antigravity/claude-sonnet-4-6");
 });
 
 test("documentation matches bundled behavior", async () => {

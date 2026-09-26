@@ -8,12 +8,15 @@ matt-pocock-atomic-workflow 설정(모델, 폴백, 스킬 등)을 조회하고 �
 
 인자: show(슬래시 뒤에 붙인 텍스트가 있으면 그것을 우선한다)
 
+하네스를 가른다. Cursor면 `.cursor/agents/<에이전트>.md`의 `model`을, Pi면 `settings.json`의 `agentOverrides`를 읽는다.
+
+기본 프리셋은 `/matt-pocock-atomic-models` 표와 같다 (`explorer` grok-high, `planner` opus-high, `worker` composer-2.5, `reviewer` sonnet-high 등).
+
 동작 규칙:
-1. `~/.pi/agent/settings.json`(및 현재 프로젝트 `.pi/settings.json`이 있으면 함께)을 읽는다.
-2. 현재 `subagents.agentOverrides`의 matt-pocock-atomic-workflow 단계별 에이전트(`explorer`, `planner`, `tasker`, `worker`, `reviewer` 등) 및 `skills`, `packages` 상태를 확인한다.
-3. 인자가 `init`이면 `settings.example.json`을 기반으로 `settings.json`에 안전하게 병합하고, `<agent> <model>`이면 해당 에이전트의 모델 설정을 갱신한다.
-4. 기본(`show`): 설정이 등록되어 있으면 표로 출력하고, 비어 있으면 사용 가능한 Provider/모델 목록과 추천 프리셋을 제시하여 대화형 선택을 안내한다.
-5. 에이전트 `.md` frontmatter를 직접 고치지 않고 `settings.json`만 수정함을 상기시킨다.
+1. 현재 단계 에이전트 모델과 기본 프리셋 차이를 표로 보여준다.
+2. `init`이면 Cursor는 `.cursor/agents`의 `model`을 기본값으로, Pi는 `settings.example.json`을 병합한다.
+3. `<agent> <model>`이면 해당 하네스의 설정만 갱신한다.
+4. Pi 에이전트 `.md` frontmatter는 직접 고치지 않는다.
 
 한국어로 결과를 보고한다.
 

@@ -1,53 +1,53 @@
 {
   "enabledModels": [
-    "YOUR_PRIMARY_MODEL",
-    "YOUR_FALLBACK_MODEL"
+    "xai/grok-4.6",
+    "cursor/composer-2.5"
   ],
   "subagents": {
     "agentOverrides": {
       "explorer": {
-        "model": "YOUR_EXPLORER_MODEL",
-        "fallbackModels": ["YOUR_EXPLORER_FALLBACK_MODEL"]
+        "model": "xai/grok-4.6",
+        "fallbackModels": ["antigravity/gemini-3-1-pro:high"]
       },
       "planner": {
-        "model": "YOUR_PLAN_MODEL",
-        "fallbackModels": ["YOUR_PLAN_FALLBACK_MODEL"]
+        "model": "antigravity/claude-sonnet-4-6",
+        "fallbackModels": ["xai/grok-4.6"]
       },
       "tasker": {
-        "model": "YOUR_TASK_MODEL",
-        "fallbackModels": ["YOUR_TASK_FALLBACK_MODEL"]
+        "model": "cursor/composer-2.5",
+        "fallbackModels": ["antigravity/gemini-3-8-flash:high"]
       },
       "worker": {
-        "model": "YOUR_WORKER_MODEL",
-        "fallbackModels": ["YOUR_WORKER_FALLBACK_MODEL"]
+        "model": "cursor/composer-2.5",
+        "fallbackModels": ["xai/grok-4.6"]
       },
       "reviewer": {
-        "model": "YOUR_REVIEW_MODEL",
-        "fallbackModels": ["YOUR_REVIEW_FALLBACK_MODEL"]
+        "model": "antigravity/claude-sonnet-4-6",
+        "fallbackModels": ["xai/grok-4.6"]
       },
       "tester": {
-        "model": "YOUR_TESTER_MODEL",
-        "fallbackModels": ["YOUR_TESTER_FALLBACK_MODEL"]
+        "model": "cursor/composer-2.5",
+        "fallbackModels": ["xai/grok-4.6"]
       },
       "cli-delegate": {
-        "model": "YOUR_CLI_DELEGATE_MODEL",
-        "fallbackModels": ["YOUR_CLI_DELEGATE_FALLBACK_MODEL"]
+        "model": "antigravity/gemini-3-8-flash:high",
+        "fallbackModels": ["cursor/composer-2.5"]
       },
       "scout": {
-        "model": "YOUR_SCOUT_MODEL",
-        "fallbackModels": ["YOUR_SCOUT_FALLBACK_MODEL"]
+        "model": "xai/grok-4.6",
+        "fallbackModels": ["antigravity/gemini-3-1-pro:high"]
       },
       "oracle": {
-        "model": "YOUR_ORACLE_MODEL",
-        "fallbackModels": ["YOUR_ORACLE_FALLBACK_MODEL"]
+        "model": "antigravity/claude-sonnet-4-6",
+        "fallbackModels": ["xai/grok-4.6"]
       },
       "researcher": {
-        "model": "YOUR_RESEARCHER_MODEL",
-        "fallbackModels": ["YOUR_RESEARCHER_FALLBACK_MODEL"]
+        "model": "xai/grok-4.6",
+        "fallbackModels": ["antigravity/gemini-3-1-pro:high"]
       },
       "delegate": {
-        "model": "YOUR_DELEGATE_MODEL",
-        "fallbackModels": ["YOUR_DELEGATE_FALLBACK_MODEL"]
+        "model": "antigravity/gemini-3-8-flash:high",
+        "fallbackModels": ["cursor/composer-2.5"]
       }
     }
   }

@@ -59,16 +59,24 @@ jq -s '.[0] * .[1]' ~/.pi/agent/settings.json settings.example.json > /tmp/merge
 mv /tmp/merged.json ~/.pi/agent/settings.json
 ```
 
-`YOUR_*` placeholder를 실제 모델 ID로 바꾼다. 모델은 원하는 것을 쓰면 되고, 아래 ID는 예시일 뿐이다.
+`settings.example.json`에 단계별 기본 모델이 들어 있다. 필요하면 `model` / `fallbackModels`만 바꾼다.
 
 ```json
 "explorer": {
   "model": "xai/grok-4.6",
-  "fallbackModels": ["antigravity/claude-sonnet-4-6"]
+  "fallbackModels": ["antigravity/gemini-3-1-pro:high"]
 },
 "planner": {
-  "model": "xai/grok-4.6",
-  "fallbackModels": ["antigravity/claude-sonnet-4-6"]
+  "model": "antigravity/claude-sonnet-4-6",
+  "fallbackModels": ["xai/grok-4.6"]
+},
+"worker": {
+  "model": "cursor/composer-2.5",
+  "fallbackModels": ["xai/grok-4.6"]
+},
+"reviewer": {
+  "model": "antigravity/claude-sonnet-4-6",
+  "fallbackModels": ["xai/grok-4.6"]
 }
 ```
 
@@ -140,33 +148,44 @@ pi restart
 
 PLAN에 막힌 질문(보안·범위·데이터 손실)이 있으면 거기서 멈춘다. 계획만 쓰려면 `/matt-pocock-atomic-plan 계획만`.
 
-단계마다 다른 모델을 쓰려면 `settings.json`의 `subagents.agentOverrides`에서 에이전트별로 고른다. 스킬 자체에는 모델을 붙일 수 없다.
+단계마다 다른 모델을 쓰려면 Pi는 `settings.json`의 `subagents.agentOverrides`, Cursor는 `.cursor/agents/<에이전트>.md`의 `model`을 고른다. 기본 프리셋은 `settings.example.json`과 `scripts/sync-cursor.mjs`의 `CURSOR_AGENT_MODELS`다. 스킬 자체에는 모델을 붙일 수 없다.
 
 ---
 
 ## 7. 단계별 모델 바꾸는 법
 
-간편하게 바꾸려면 Pi 세션에서 `/matt-pocock-atomic-config <에이전트> <모델>` 또는 대화형으로 `/matt-pocock-atomic-config`를 실행한다. 모델은 에이전트마다 원하는 것을 쓰면 된다.
+기본값:
+
+| 에이전트 | Cursor | Pi |
+|---|---|---|
+| explorer | `cursor-grok-4.6-high` | `xai/grok-4.6` |
+| planner | `claude-opus-5-thinking-high` | `antigravity/claude-sonnet-4-6` |
+| tasker | `claude-sonnet-5-thinking-medium` | `cursor/composer-2.5` |
+| worker | `composer-2.5` | `cursor/composer-2.5` |
+| reviewer | `claude-sonnet-5-thinking-high` | `antigravity/claude-sonnet-4-6` |
+| tester | `composer-2.5` 권장 | `cursor/composer-2.5` |
+| cli-delegate | `inherit` | `antigravity/gemini-3-8-flash:high` |
+
+바꾸려면 `/matt-pocock-atomic-config <에이전트> <모델>` 또는 대화형 `/matt-pocock-atomic-config`.
 
 직접 편집할 경우:
-1. `~/.pi/agent/settings.json`을 열고 `subagents.agentOverrides` 안의 해당 에이전트 키를 찾는다.
-2. `model`과 `fallbackModels`를 원하는 값으로 바꾼다.
-3. Pi를 재시작하거나 새 대화를 열면 적용된다.
+- **Cursor**: `.cursor/agents/<에이전트>.md`의 `model:` 한 줄
+- **Pi**: `~/.pi/agent/settings.json`의 `subagents.agentOverrides`
 
 ```json
 {
   "subagents": {
     "agentOverrides": {
       "worker": {
-        "model": "xai/grok-4.6",
-        "fallbackModels": ["antigravity/claude-sonnet-4-6", "cursor/composer-2.5"]
+        "model": "cursor/composer-2.5",
+        "fallbackModels": ["xai/grok-4.6"]
       }
     }
   }
 }
 ```
 
-**에이전트 `.md` 파일을 직접 고치지 말 것.** frontmatter에 `model` 키를 넣으면 settings override가 무시된다.  
+**Pi 에이전트 `.md` 파일을 직접 고치지 말 것.** frontmatter에 `model` 키를 넣으면 settings override가 무시된다.  
 자세한 안내는 `/matt-pocock-atomic-models`.
 
 ---
@@ -176,7 +195,7 @@ PLAN에 막힌 질문(보안·범위·데이터 손실)이 있으면 거기서 �
 - **푸시 금지**: `git push`는 직접 원할 때만. 에이전트는 푸시하지 않는다.
 - **비밀 금지**: 토큰·API 키·`.env`를 커밋하거나 워커 브리프에 넣지 않는다.
 - **Cursor IDE 슬래시**: 기본은 Pi용이다. Cursor에서 쓰려면 [Cursor에서 쓰기](#10-cursor에서-쓰기)를 따른다.
-- **에이전트 파일 직접 편집 금지**: `agents/*.md`와 `prompts/*.md`를 직접 고치면 패키지 업데이트 시 덮어써진다. 모델은 settings.json에서만 바꾼다.
+- **에이전트 파일 직접 편집 금지**: `agents/*.md`와 `prompts/*.md`를 직접 고치면 패키지 업데이트 시 덮어써진다. Pi 모델은 settings.json에서만 바꾼다. Cursor 모델은 `.cursor/agents/<에이전트>.md`의 `model` 또는 `/matt-pocock-atomic-config`.
 
 ---
 
@@ -204,7 +223,7 @@ PLAN에 막힌 질문(보안·범위·데이터 손실)이 있으면 거기서 �
 
 | Cursor 파일 | 원본 | 설명 |
 |---|---|---|
-| `.cursor/agents/*.md` (5종: `explorer`, `planner`, `tasker`, `worker`, `reviewer`) | `agents/*.md` | Cursor frontmatter(`name`, `description`, `model: inherit`, `readonly: false`, `is_background: true`)를 갖춘 서브에이전트. `/explorer` … 또는 "Use the planner subagent …"로 호출한다. |
+| `.cursor/agents/*.md` (6종: `explorer`, `planner`, `tasker`, `worker`, `reviewer`, `cli-delegate`) | `agents/*.md` | Cursor frontmatter(`name`, `description`, 단계별 기본 `model`, `readonly: false`, `is_background: true`)를 갖춘 서브에이전트. `/explorer` … 또는 "Use the planner subagent …"로 호출한다. |
 | `.cursor/commands/matt-pocock-atomic-*.md` (12종) | `prompts/*.md` | frontmatter 없는 plain markdown 슬래시 커맨드. 슬래시 뒤 텍스트가 커맨드 입력이 된다. |
 | `skills/*` (그대로 복사) | `skills/*` | 표준 Agent Skills 형식이라 변환이 필요 없다. |
 
@@ -215,15 +234,15 @@ PLAN에 막힌 질문(보안·범위·데이터 손실)이 있으면 거기서 �
 node scripts/install-cursor.mjs --target /path/to/project
 ```
 
-`skills/*` → `<project>/.agents/skills/*`(Cursor·Claude Code·Codex가 모두 읽는 portable 위치. Cursor 전용으로 두려면 `--skills-dir .cursor/skills`)와 `.cursor/agents/`, `.cursor/commands/`를 복사한다. 이미 있는 파일은 유지되며 `--force`일 때만 덮어쓴다. 설치 시 단계 모델을 고정하려면 `--set-model`을 반복 지정한다:
+`skills/*` → `<project>/.agents/skills/*`(Cursor·Claude Code·Codex가 모두 읽는 portable 위치. Cursor 전용으로 두려면 `--skills-dir .cursor/skills`)와 `.cursor/agents/`, `.cursor/commands/`를 복사한다. 이미 있는 파일은 유지되며 `--force`일 때만 덮어쓴다. 단계 모델 기본값은 복사되는 에이전트 파일에 들어 있다. 덮어쓰려면 `--set-model`을 반복 지정한다:
 
 ```bash
-node scripts/install-cursor.mjs --target /path/to/project --set-model worker=composer-2.5[]
+node scripts/install-cursor.mjs --target /path/to/project --set-model worker=composer-2.5-fast
 ```
 
 ### 단계별 모델과 유지보수
 
-- Cursor에서는 단계 모델을 `.cursor/agents/<에이전트>.md` frontmatter의 `model`로 지정한다(`composer-2.5[]`, `claude-opus-5[effort=high]` 등). `settings.json` override나 `fallbackModels` 체인은 없으며, Cursor가 자동으로 호환 모델로 폴백한다.
+- Cursor 기본 모델: explorer=`cursor-grok-4.6-high`, planner=`claude-opus-5-thinking-high`, tasker=`claude-sonnet-5-thinking-medium`, worker=`composer-2.5`, reviewer=`claude-sonnet-5-thinking-high`, cli-delegate=`inherit`. 바꾸려면 `.cursor/agents/<에이전트>.md`의 `model` 또는 `/matt-pocock-atomic-config`. Cursor에는 `fallbackModels`가 없고, 지정 모델이 없으면 호환 모델로 폴백한다.
 - 위임은 Task 툴의 백그라운드 서브에이전트로 수행한다(Pi의 `async: true`와 동등).
 - `agents/*.md`나 `prompts/*.md`를 고친 뒤에는 재생성하고 검증한다:
 

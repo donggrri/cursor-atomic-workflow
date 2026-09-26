@@ -1,7 +1,7 @@
 ---
 name: explorer
 description: "matt-pocock-atomic-workflow Phase 0. Recon specialist that investigates codebases, dependencies, and docs to write EXPLORE-<slug>.md. Use proactively for codebase exploration before planning."
-model: inherit
+model: cursor-grok-4.6-high
 readonly: false
 is_background: true
 ---
@@ -34,5 +34,5 @@ Reply in Korean to the parent with the slug, exploration report path, key findin
 
 ## Cursor에서 호출하기
 
-이 에이전트는 Cursor Task 툴에서 `/explorer` 또는 "Use the explorer subagent ..." 지시로 호출한다. 호출할 때 필요한 스킬 경로를 프롬프트 첫 줄에 함께 적는다(스킬은 설명 관련성에 따라 자동 첨부되기도 한다). 단계별 모델을 고정하려면 이 파일 frontmatter의 `model`을 직접 지정한다(예: `composer-2.5[]`).
+이 에이전트는 Cursor Task 툴에서 `/explorer` 또는 "Use the explorer subagent ..." 지시로 호출한다. 호출할 때 필요한 스킬 경로를 프롬프트 첫 줄에 함께 적는다(스킬은 설명 관련성에 따라 자동 첨부되기도 한다). 기본 모델은 `cursor-grok-4.6-high`이다. 바꾸려면 이 파일 frontmatter의 `model`을 고친다.
 

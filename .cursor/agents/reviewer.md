@@ -1,7 +1,7 @@
 ---
 name: reviewer
 description: "matt-pocock-atomic-workflow Phase 4. Writes REVIEW-<slug>.md against TASKS, diff, tests, and risks. Use after implementation to verify tasks, diff, and tests."
-model: inherit
+model: claude-sonnet-5-thinking-high
 readonly: false
 is_background: true
 ---
@@ -38,5 +38,5 @@ Reply in Korean with pass/fail, defects, concise summary (장문 로그 직접 �
 
 ## Cursor에서 호출하기
 
-이 에이전트는 Cursor Task 툴에서 `/reviewer` 또는 "Use the reviewer subagent ..." 지시로 호출한다. 호출할 때 필요한 스킬 경로를 프롬프트 첫 줄에 함께 적는다(스킬은 설명 관련성에 따라 자동 첨부되기도 한다). 단계별 모델을 고정하려면 이 파일 frontmatter의 `model`을 직접 지정한다(예: `composer-2.5[]`).
+이 에이전트는 Cursor Task 툴에서 `/reviewer` 또는 "Use the reviewer subagent ..." 지시로 호출한다. 호출할 때 필요한 스킬 경로를 프롬프트 첫 줄에 함께 적는다(스킬은 설명 관련성에 따라 자동 첨부되기도 한다). 기본 모델은 `claude-sonnet-5-thinking-high`이다. 바꾸려면 이 파일 frontmatter의 `model`을 고친다.
 

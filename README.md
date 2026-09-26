@@ -59,16 +59,24 @@ jq -s '.[0] * .[1]' ~/.pi/agent/settings.json settings.example.json > /tmp/merge
 mv /tmp/merged.json ~/.pi/agent/settings.json
 ```
 
-Replace `YOUR_*` placeholders with real model IDs. Use whatever models you want; the IDs below are examples only.
+`settings.example.json` already contains the recommended per-phase defaults. Change `model` / `fallbackModels` only if you want something else.
 
 ```json
 "explorer": {
   "model": "xai/grok-4.6",
-  "fallbackModels": ["antigravity/claude-sonnet-4-6"]
+  "fallbackModels": ["antigravity/gemini-3-1-pro:high"]
 },
 "planner": {
-  "model": "xai/grok-4.6",
-  "fallbackModels": ["antigravity/claude-sonnet-4-6"]
+  "model": "antigravity/claude-sonnet-4-6",
+  "fallbackModels": ["xai/grok-4.6"]
+},
+"worker": {
+  "model": "cursor/composer-2.5",
+  "fallbackModels": ["xai/grok-4.6"]
+},
+"reviewer": {
+  "model": "antigravity/claude-sonnet-4-6",
+  "fallbackModels": ["xai/grok-4.6"]
 }
 ```
 
@@ -140,33 +148,44 @@ Default: once **PLAN is confirmed**, task → execute → review run automatical
 
 If PLAN has blocking questions (security, scope, data loss), it stops there. To write a plan only, use `/matt-pocock-atomic-plan 계획만`.
 
-To use a different model per phase, pick it per agent in `settings.json` under `subagents.agentOverrides`. You cannot attach a model to a skill itself.
+To use a different model per phase, pick it in Pi `settings.json` `subagents.agentOverrides` or Cursor `.cursor/agents/<agent>.md` `model`. Defaults live in `settings.example.json` and `CURSOR_AGENT_MODELS` in `scripts/sync-cursor.mjs`. You cannot attach a model to a skill itself.
 
 ---
 
 ## 7. How to change models per phase
 
-The easy way is to run `/matt-pocock-atomic-config <agent> <model>` in a Pi session, or `/matt-pocock-atomic-config` for the interactive flow. Pick any model you want per agent.
+Defaults:
+
+| Agent | Cursor | Pi |
+|---|---|---|
+| explorer | `cursor-grok-4.6-high` | `xai/grok-4.6` |
+| planner | `claude-opus-5-thinking-high` | `antigravity/claude-sonnet-4-6` |
+| tasker | `claude-sonnet-5-thinking-medium` | `cursor/composer-2.5` |
+| worker | `composer-2.5` | `cursor/composer-2.5` |
+| reviewer | `claude-sonnet-5-thinking-high` | `antigravity/claude-sonnet-4-6` |
+| tester | `composer-2.5` recommended | `cursor/composer-2.5` |
+| cli-delegate | `inherit` | `antigravity/gemini-3-8-flash:high` |
+
+The easy way is `/matt-pocock-atomic-config <agent> <model>`, or `/matt-pocock-atomic-config` for the interactive flow.
 
 To edit it yourself:
-1. Open `~/.pi/agent/settings.json` and find the agent key under `subagents.agentOverrides`.
-2. Change `model` and `fallbackModels` to the values you want.
-3. Restart Pi or start a new conversation for the change to take effect.
+- **Cursor**: the `model:` line in `.cursor/agents/<agent>.md`
+- **Pi**: `~/.pi/agent/settings.json` under `subagents.agentOverrides`
 
 ```json
 {
   "subagents": {
     "agentOverrides": {
       "worker": {
-        "model": "xai/grok-4.6",
-        "fallbackModels": ["antigravity/claude-sonnet-4-6", "cursor/composer-2.5"]
+        "model": "cursor/composer-2.5",
+        "fallbackModels": ["xai/grok-4.6"]
       }
     }
   }
 }
 ```
 
-**Do not edit agent `.md` files directly.** If you put a `model` key in frontmatter, settings overrides are ignored.  
+**Do not put `model` in Pi agent `.md` files.** That ignores settings overrides.  
 For more detail, run `/matt-pocock-atomic-models`.
 
 ---
@@ -176,7 +195,7 @@ For more detail, run `/matt-pocock-atomic-models`.
 - **No push**: `git push` only when you explicitly want it. The agent does not push.
 - **No secrets**: Do not commit tokens, API keys, or `.env`, and do not put them in worker briefs.
 - **No Cursor IDE slash commands**: This package is for Pi by default. To use it in Cursor, follow [Use in Cursor](#10-use-in-cursor) instead.
-- **Do not edit agent files directly**: Changes to `agents/*.md` and `prompts/*.md` are overwritten on package update. Change models only in settings.json.
+- **Do not edit Pi agent files directly**: Changes to `agents/*.md` and `prompts/*.md` are overwritten on package update. Change Pi models in settings.json. In Cursor, change `.cursor/agents/<agent>.md` `model` (or use `--set-model` / `/matt-pocock-atomic-config`).
 
 ---
 
@@ -204,7 +223,7 @@ The same subagents and skills run in Cursor. `agents/`, `prompts/`, and `skills/
 
 | Cursor file | Source | What it is |
 |---|---|---|
-| `.cursor/agents/*.md` (5: `explorer`, `planner`, `tasker`, `worker`, `reviewer`) | `agents/*.md` | Subagents with Cursor frontmatter (`name`, `description`, `model: inherit`, `readonly: false`, `is_background: true`). Invoke with `/explorer` … or "Use the planner subagent …". |
+| `.cursor/agents/*.md` (6: `explorer`, `planner`, `tasker`, `worker`, `reviewer`, `cli-delegate`) | `agents/*.md` | Subagents with Cursor frontmatter (`name`, `description`, per-phase default `model`, `readonly: false`, `is_background: true`). Invoke with `/explorer` … or "Use the planner subagent …". |
 | `.cursor/commands/matt-pocock-atomic-*.md` (12) | `prompts/*.md` | Slash commands as plain markdown (no frontmatter). Text after the command becomes the command's input. |
 | `skills/*` (copied as-is) | `skills/*` | Standard Agent Skills, no conversion needed. |
 
@@ -215,15 +234,15 @@ The same subagents and skills run in Cursor. `agents/`, `prompts/`, and `skills/
 node scripts/install-cursor.mjs --target /path/to/project
 ```
 
-This copies `skills/*` → `<project>/.agents/skills/*` (portable: Cursor, Claude Code, and Codex all read it; pass `--skills-dir .cursor/skills` for a Cursor-only install) plus `.cursor/agents/` and `.cursor/commands/`. Existing files are kept unless you pass `--force`. To pin a phase model at install time, repeat `--set-model`:
+This copies `skills/*` → `<project>/.agents/skills/*` (portable: Cursor, Claude Code, and Codex all read it; pass `--skills-dir .cursor/skills` for a Cursor-only install) plus `.cursor/agents/` and `.cursor/commands/`. Existing files are kept unless you pass `--force`. Per-phase default models are already in the agent files. To override at install time, repeat `--set-model`:
 
 ```bash
-node scripts/install-cursor.mjs --target /path/to/project --set-model worker=composer-2.5[]
+node scripts/install-cursor.mjs --target /path/to/project --set-model worker=composer-2.5-fast
 ```
 
 ### Per-phase models and maintenance
 
-- In Cursor, pin a phase model in `.cursor/agents/<agent>.md` frontmatter (`model: composer-2.5[]`, `claude-opus-5[effort=high]`, …). There is no `settings.json` override or `fallbackModels` chain; Cursor falls back to a compatible model automatically.
+- Cursor defaults: explorer=`cursor-grok-4.6-high`, planner=`claude-opus-5-thinking-high`, tasker=`claude-sonnet-5-thinking-medium`, worker=`composer-2.5`, reviewer=`claude-sonnet-5-thinking-high`, cli-delegate=`inherit`. Change `.cursor/agents/<agent>.md` `model` or run `/matt-pocock-atomic-config`. There is no `fallbackModels` chain; Cursor falls back to a compatible model automatically.
 - Delegation uses the Task tool with background subagents (the Cursor equivalent of Pi's `async: true`).
 - After editing `agents/*.md` or `prompts/*.md`, regenerate and verify:
 
