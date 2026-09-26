@@ -238,7 +238,7 @@ node scripts/doctor.mjs               # section 3 checks Cursor sync + install s
 
 ## 11. Future work
 
-These items are documented only. They are not implemented in this package yet:
+These items are documented only. They are not implemented in this package yet. Priorities and the harness-unification plan live in [ROADMAP.md](ROADMAP.md) (Korean).
 
 - **Cursor sync drift**: `tester` is not in Cursor `AGENT_NAMES`. After `prompts/` or `agents/` edits, `node scripts/sync-cursor.mjs` is allowed; do not add `tester` to Cursor `AGENT_NAMES` in this slice.
 - **README agent keys**: some package agents (for example `tester`, `cli-delegate`) are missing from the settings key list above.

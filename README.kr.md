@@ -238,7 +238,7 @@ node scripts/doctor.mjs               # 3번 섹션에서 Cursor 동기화·설�
 
 ## 11. 추후 과제
 
-이번 패키지에서 구현하지 않고 README에만 남긴 항목:
+이번 패키지에서 구현하지 않고 README에만 남긴 항목이다. 우선순위와 하네스 통합 계획은 [ROADMAP.md](ROADMAP.md)에 있다.
 
 - **Cursor 동기화 드리프트**: `tester`는 Cursor `AGENT_NAMES`에 없다. `prompts/`·`agents/` 변경 후 `node scripts/sync-cursor.mjs`는 허용하되, tester를 `AGENT_NAMES`에 추가하지 않는다.
 - **README 에이전트 키 누락**: 패키지 에이전트 일부(`tester`, `cli-delegate` 등)가 위 설정 키 목록에 없다.
