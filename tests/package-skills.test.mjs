@@ -85,6 +85,8 @@ test("package.json meets public publish metadata contract", async () => {
     "skills/",
     "scripts/",
     ".cursor/",
+    ".opencode/",
+    ".claude/",
     "settings.example.json",
     "README.md",
     "README.kr.md",
@@ -123,8 +125,8 @@ test("bundled skills are present", async () => {
   }
 });
 
-test("planning preflight is defined in prompts", async () => {
-  const plan = await readFile("prompts/matt-pocock-atomic-plan.md", "utf8");
+test("planning preflight is defined in the plan command skill", async () => {
+  const plan = await readFile("skills/matt-pocock-atomic-plan/SKILL.md", "utf8");
   assert.match(plan, /grilling/, "matt-pocock-atomic-plan.md must reference grilling");
   assert.match(plan, /wayfinder/, "matt-pocock-atomic-plan.md must reference wayfinder");
   assert.doesNotMatch(plan, /way-finder/, "matt-pocock-atomic-plan.md must not reference old way-finder typo");
@@ -135,9 +137,9 @@ test("artifact writers use slug folders under .docs and harness docs", async () 
     "skills/matt-pocock-atomic-workflow/SKILL.md",
     "agents/explorer.md",
     "agents/planner.md",
-    "prompts/matt-pocock-atomic-explore.md",
-    "prompts/matt-pocock-atomic-plan.md",
-    "prompts/matt-pocock-atomic-status.md"
+    "skills/matt-pocock-atomic-explore/SKILL.md",
+    "skills/matt-pocock-atomic-plan/SKILL.md",
+    "skills/matt-pocock-atomic-status/SKILL.md"
   ];
   for (const file of files) {
     const body = await readFile(file, "utf8");
@@ -186,14 +188,14 @@ test("planner contract uses correct skills", async () => {
   assert.match(planner, /brief/, "planner must require planning refinement brief");
 });
 
-test("prompts spawn the renamed agents", async () => {
+test("command skills spawn the renamed agents", async () => {
   const prompts = {
-    "prompts/matt-pocock-atomic-explore.md": ["explorer"],
-    "prompts/matt-pocock-atomic-plan.md": ["planner", "tasker", "worker", "reviewer"],
-    "prompts/matt-pocock-atomic-task.md": ["tasker"],
-    "prompts/matt-pocock-atomic-execute.md": ["worker", "reviewer"],
-    "prompts/matt-pocock-atomic-review.md": ["reviewer"],
-    "prompts/matt-pocock-atomic-delegate.md": ["worker"]
+    "skills/matt-pocock-atomic-explore/SKILL.md": ["explorer"],
+    "skills/matt-pocock-atomic-plan/SKILL.md": ["planner", "tasker", "worker", "reviewer"],
+    "skills/matt-pocock-atomic-task/SKILL.md": ["tasker"],
+    "skills/matt-pocock-atomic-execute/SKILL.md": ["worker", "reviewer"],
+    "skills/matt-pocock-atomic-review/SKILL.md": ["reviewer"],
+    "skills/matt-pocock-atomic-delegate/SKILL.md": ["worker"]
   };
   for (const [file, agents] of Object.entries(prompts)) {
     const body = await readFile(file, "utf8");
@@ -494,11 +496,11 @@ test("pipeline recovery workers and testing", async () => {
   }
 });
 
-test("pipeline recovery prompts", async () => {
-  const execute = await readFile("prompts/matt-pocock-atomic-execute.md", "utf8");
-  const review = await readFile("prompts/matt-pocock-atomic-review.md", "utf8");
-  const status = await readFile("prompts/matt-pocock-atomic-status.md", "utf8");
-  const commit = await readFile("prompts/matt-pocock-atomic-wrapup.md", "utf8");
+test("pipeline recovery command skills", async () => {
+  const execute = await readFile("skills/matt-pocock-atomic-execute/SKILL.md", "utf8");
+  const review = await readFile("skills/matt-pocock-atomic-review/SKILL.md", "utf8");
+  const status = await readFile("skills/matt-pocock-atomic-status/SKILL.md", "utf8");
+  const commit = await readFile("skills/matt-pocock-atomic-wrapup/SKILL.md", "utf8");
 
   // execute prompt recovery policy
   assert.match(execute, /막힘 재개/, "execute.md must mention 막힘 재개");

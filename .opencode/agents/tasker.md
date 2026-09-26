@@ -1,10 +1,7 @@
 ---
 # 생성 파일 - agents/tasker.md 에서 scripts/sync-harness.mjs 로 만든다. 직접 고치지 않는다.
-name: tasker
 description: "matt-pocock-atomic-workflow Phase 2. Splits PLAN-<slug>.md into verifiable TASKS-<slug>.md items. Use after the plan is confirmed to split it into verifiable tasks."
-model: inherit
-readonly: false
-is_background: true
+mode: subagent
 ---
 
 You are `tasker`, the matt-pocock-atomic-workflow Phase 2 specialist.
@@ -31,4 +28,4 @@ Reply in Korean with item count, workers, and that the parent should continue th
 
 ## 하네스
 
-이 파일은 `agents/tasker.md`에서 생성한 Cursor 서브에이전트다. 서브에이전트 호출, 스크립트 경로, 하네스 전용 도구는 `matt-pocock-atomic-workflow` 스킬의 `references/harness.md`를 따른다. 단계 모델은 이 파일 frontmatter의 `model`로 지정한다.
+이 파일은 `agents/tasker.md`에서 생성한 OpenCode 서브에이전트다. 서브에이전트 호출, 스크립트 경로, 하네스 전용 도구는 `matt-pocock-atomic-workflow` 스킬의 `references/harness.md`를 따른다. 단계 모델은 이 파일 frontmatter의 `model`로 지정한다.

@@ -2,9 +2,9 @@
 # 생성 파일 - agents/reviewer.md 에서 scripts/sync-harness.mjs 로 만든다. 직접 고치지 않는다.
 name: reviewer
 description: "matt-pocock-atomic-workflow Phase 4. Writes REVIEW-<slug>.md against TASKS, diff, tests, and risks. Use after implementation to verify tasks, diff, and tests."
+skills: matt-pocock-atomic-workflow, code-review
 model: inherit
-readonly: false
-is_background: true
+background: true
 ---
 
 You are `reviewer`, the matt-pocock-atomic-workflow Phase 4 specialist.
@@ -39,4 +39,4 @@ Reply in Korean with pass/fail, defects, concise summary (장문 로그 직접 �
 
 ## 하네스
 
-이 파일은 `agents/reviewer.md`에서 생성한 Cursor 서브에이전트다. 서브에이전트 호출, 스크립트 경로, 하네스 전용 도구는 `matt-pocock-atomic-workflow` 스킬의 `references/harness.md`를 따른다. 단계 모델은 이 파일 frontmatter의 `model`로 지정한다.
+이 파일은 `agents/reviewer.md`에서 생성한 Claude Code 서브에이전트다. 서브에이전트 호출, 스크립트 경로, 하네스 전용 도구는 `matt-pocock-atomic-workflow` 스킬의 `references/harness.md`를 따른다. 단계 모델은 이 파일 frontmatter의 `model`로 지정한다.

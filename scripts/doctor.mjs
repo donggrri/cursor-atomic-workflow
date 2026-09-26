@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { readFile, writeFile, readdir, stat, copyFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, resolve, dirname } from "node:path";
 import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
 
 export const BUNDLED_SKILLS = [
   "code-review",
@@ -17,52 +18,72 @@ export const BUNDLED_SKILLS = [
 
 export const WORKFLOW_SKILL = "matt-pocock-atomic-workflow";
 
-export const CURSOR_AGENT_NAMES = ["explorer", "planner", "tasker", "worker", "reviewer"];
+const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /**
- * 커밋된 .cursor/agents + .cursor/commands 가 sync-cursor.mjs 생성 결과와 일치하는지 검사한다.
+ * 패키지 저장소에서 커밋된 하네스 생성물이 sync-harness.mjs 결과와 일치하는지 검사한다.
+ * 패키지 저장소가 아닌 곳(설치 프로젝트)에서는 검사하지 않는다.
  */
-export async function checkCursorSync(options = {}) {
+export async function checkHarnessSync(options = {}) {
   const cwd = options.cwd || process.cwd();
+  if (!existsSync(join(cwd, "agents")) || !existsSync(join(cwd, "skills", WORKFLOW_SKILL, "SKILL.md"))) {
+    return { skipped: true, inSync: true, mismatches: [], stale: [] };
+  }
   try {
-    const { checkCursorSync: check } = await import("./sync-cursor.mjs");
+    const { checkHarnessSync: check } = await import("./sync-harness.mjs");
     return await check({ root: cwd });
   } catch (err) {
-    return { inSync: false, mismatches: [], error: err.message };
+    return { inSync: false, mismatches: [], stale: [], error: err.message };
   }
 }
 
+async function countMarkdown(dir, names) {
+  if (!existsSync(dir)) return { found: [], missing: names };
+  const files = new Set((await readdir(dir).catch(() => [])).filter((f) => f.endsWith(".md")));
+  return {
+    found: names.filter((n) => files.has(`${n}.md`)),
+    missing: names.filter((n) => !files.has(`${n}.md`))
+  };
+}
+
 /**
- * 현재 작업 디렉터리에 Cursor용 설치(스킬·에이전트·커맨드)가 있는지 확인한다.
+ * 현재 작업 디렉터리에 하네스별 설치(스킬·에이전트·커맨드 shim)가 있는지 확인한다.
+ * 기대 목록은 이 패키지의 agents/ 와 커맨드 스킬에서 읽는다.
  */
-export async function checkCursorInstall(options = {}) {
+export async function checkHarnessInstall(options = {}) {
   const cwd = options.cwd || process.cwd();
-  const skillDirs = [
-    join(cwd, ".agents", "skills"),
-    join(cwd, ".cursor", "skills")
-  ];
-  const foundSkillDirs = skillDirs.filter((d) => existsSync(join(d, WORKFLOW_SKILL, "SKILL.md")));
-  const agentsDir = join(cwd, ".cursor", "agents");
-  const commandsDir = join(cwd, ".cursor", "commands");
-  const agents = CURSOR_AGENT_NAMES.map((name) => ({
-    name,
-    installed: existsSync(join(agentsDir, `${name}.md`))
-  }));
-  let commands = [];
-  if (existsSync(commandsDir)) {
-    try {
-      commands = (await readdir(commandsDir)).filter((f) => f.endsWith(".md")).sort();
-    } catch {
-      // 접근 불가 시 무시
+  const root = options.root || PACKAGE_ROOT;
+  const { listAgents, listCommandSkills } = await import("./sync-harness.mjs");
+  const { HARNESSES, findLegacyCursorCommands } = await import("./install.mjs");
+  const agentNames = await listAgents(root);
+  const commandNames = await listCommandSkills(root);
+
+  const skillDirs = [...new Set([...Object.values(HARNESSES).map((h) => h.skillsDir), ".cursor/skills"])]
+    .map((d) => join(cwd, d))
+    .filter((d) => existsSync(join(d, WORKFLOW_SKILL, "SKILL.md")));
+  const commandSkills = [];
+  for (const d of skillDirs) {
+    for (const name of commandNames) {
+      if (existsSync(join(d, name, "SKILL.md")) && !commandSkills.includes(name)) commandSkills.push(name);
     }
   }
+
+  const harnesses = {};
+  for (const [name, spec] of Object.entries(HARNESSES)) {
+    const entry = {};
+    if (spec.agentsDir) entry.agents = await countMarkdown(join(cwd, spec.agentsDir), agentNames);
+    if (spec.commandsDir) entry.commands = await countMarkdown(join(cwd, spec.commandsDir), commandNames);
+    harnesses[name] = entry;
+  }
+
   return {
-    skillsInstalled: foundSkillDirs.length > 0,
-    skillDirs: foundSkillDirs,
-    agents,
-    agentsInstalled: agents.filter((a) => a.installed).length,
-    commands,
-    commandsInstalled: commands.length
+    skillsInstalled: skillDirs.length > 0,
+    skillDirs,
+    commandSkills: commandSkills.sort(),
+    commandSkillsExpected: commandNames.length,
+    agentsExpected: agentNames.length,
+    harnesses,
+    legacyCursorCommands: await findLegacyCursorCommands(cwd)
   };
 }
 
@@ -285,8 +306,8 @@ export async function runDoctor(options = {}) {
     collisions: [],
     settingsFilter: null,
     yamlIssues: [],
-    cursorSync: null,
-    cursorInstall: null,
+    harnessSync: null,
+    harnessInstall: null,
     fixesApplied: []
   };
 
@@ -340,15 +361,15 @@ export async function runDoctor(options = {}) {
     }
   }
 
-  // 3. Cursor 지원 파일 동기화 + 설치 상태 점검
-  results.cursorSync = await checkCursorSync({ cwd });
-  results.cursorInstall = await checkCursorInstall({ cwd });
-  if (results.cursorSync && !results.cursorSync.inSync && doFix && !results.cursorSync.error) {
+  // 3. 하네스 생성물 동기화 + 설치 상태 점검
+  results.harnessSync = await checkHarnessSync({ cwd });
+  results.harnessInstall = await checkHarnessInstall({ cwd });
+  if (results.harnessSync && !results.harnessSync.inSync && doFix && !results.harnessSync.error) {
     try {
-      const { generateCursorFiles } = await import("./sync-cursor.mjs");
-      await generateCursorFiles({ root: cwd, write: true });
-      results.fixesApplied.push("Regenerated .cursor/agents and .cursor/commands via sync-cursor.mjs");
-      results.cursorSync = await checkCursorSync({ cwd });
+      const { generateHarnessFiles } = await import("./sync-harness.mjs");
+      await generateHarnessFiles({ root: cwd, write: true });
+      results.fixesApplied.push("Regenerated harness files via sync-harness.mjs");
+      results.harnessSync = await checkHarnessSync({ cwd });
     } catch {
       // 재생성 실패 시 진단 결과만 유지
     }
@@ -406,38 +427,44 @@ if (process.argv[1] && process.argv[1].endsWith("doctor.mjs")) {
       }
     }
 
-    console.log("\n3. Cursor 지원(Cursor Sync & Install) 진단:");
-    if (res.cursorSync && res.cursorSync.error) {
-      console.log(`  ⚠ Cursor 동기화 점검 실패: ${res.cursorSync.error}`);
-    } else if (res.cursorSync && res.cursorSync.inSync) {
-      console.log("  ✓ 동기화 정상: .cursor/agents + .cursor/commands 가 최신 생성 결과와 일치합니다.");
-    } else if (res.cursorSync) {
-      console.log(`  ⚠ ${res.cursorSync.mismatches.length}개 Cursor 파일이 드리프트되었습니다:`);
-      for (const m of res.cursorSync.mismatches) {
-        console.log(`    - ${m}`);
-      }
+    console.log("\n3. 하네스(Pi·Cursor·OpenCode·Claude Code·Codex) 진단:");
+    const hs = res.harnessSync;
+    if (hs && hs.error) {
+      console.log(`  ⚠ 하네스 동기화 점검 실패: ${hs.error}`);
+    } else if (hs && hs.skipped) {
+      console.log("  - 패키지 저장소가 아니므로 생성물 동기화 검사는 건너뜁니다.");
+    } else if (hs && hs.inSync) {
+      console.log("  ✓ 동기화 정상: prompts/·.opencode/·.cursor/agents·.claude/agents 가 원본과 일치합니다.");
+    } else if (hs) {
+      for (const m of hs.mismatches) console.log(`  ⚠ 원본과 다름: ${m}`);
+      for (const m of hs.stale) console.log(`  ⚠ 원본 없는 옛 생성물: ${m}`);
       if (!isFix) {
-        console.log("    -> 'node scripts/doctor.mjs --fix' 또는 'node scripts/sync-cursor.mjs' 로 재생성하세요.");
+        console.log("    -> 'node scripts/doctor.mjs --fix' 또는 'node scripts/sync-harness.mjs' 로 재생성하세요.");
       }
     }
-    if (res.cursorInstall) {
-      const ci = res.cursorInstall;
-      const missingAgents = ci.agents.filter((a) => !a.installed).map((a) => a.name);
-      if (ci.skillsInstalled && missingAgents.length === 0 && ci.commandsInstalled > 0) {
-        console.log("  ✓ 설치 정상: 스킬·서브에이전트 5종·커맨드가 현재 프로젝트에서 발견됩니다.");
+    const hi = res.harnessInstall;
+    if (hi) {
+      if (hi.skillsInstalled) {
+        console.log(`  ✓ 스킬 설치: ${hi.skillDirs.join(", ")} (커맨드 스킬 ${hi.commandSkills.length}/${hi.commandSkillsExpected})`);
       } else {
-        if (!ci.skillsInstalled) {
-          console.log("  ✗ Cursor 스킬 미설치: .agents/skills/matt-pocock-atomic-workflow 가 없습니다.");
+        console.log("  - 현재 프로젝트에 설치된 스킬 없음 (.agents/skills 또는 .claude/skills).");
+      }
+      for (const [name, entry] of Object.entries(hi.harnesses)) {
+        const parts = [];
+        if (entry.agents && entry.agents.found.length) {
+          parts.push(`에이전트 ${entry.agents.found.length}/${hi.agentsExpected}`);
         }
-        if (missingAgents.length > 0) {
-          console.log(`  ✗ Cursor 서브에이전트 없음: ${missingAgents.join(", ")}`);
+        if (entry.commands && entry.commands.found.length) {
+          parts.push(`커맨드 shim ${entry.commands.found.length}/${hi.commandSkillsExpected}`);
         }
-        if (ci.commandsInstalled === 0) {
-          console.log("  ✗ Cursor 커맨드 없음: .cursor/commands/ 가 비어 있습니다.");
-        }
-        if (!isFix) {
-          console.log("    -> 'node scripts/install-cursor.mjs --target <프로젝트>' 로 설치하세요.");
-        }
+        if (parts.length) console.log(`  · ${name}: ${parts.join(", ")}`);
+      }
+      if (hi.legacyCursorCommands.length) {
+        console.log(`  ⚠ 레거시 .cursor/commands/ 파일 ${hi.legacyCursorCommands.length}개가 커맨드 스킬과 슬래시 메뉴에서 겹칩니다. 지우세요:`);
+        for (const f of hi.legacyCursorCommands) console.log(`    rm ${f}`);
+      }
+      if (!hi.skillsInstalled && !isFix) {
+        console.log("    -> 'node scripts/install.mjs --harness <cursor|opencode|claude|codex> --target <프로젝트>' 로 설치하세요.");
       }
     }
 

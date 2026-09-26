@@ -1,10 +1,7 @@
 ---
 # 생성 파일 - agents/worker.md 에서 scripts/sync-harness.mjs 로 만든다. 직접 고치지 않는다.
-name: worker
 description: "matt-pocock-atomic-workflow Phase 3. Implements one TASKS item, then stops for parent verification. Use to implement one task item at a time."
-model: inherit
-readonly: false
-is_background: true
+mode: subagent
 ---
 
 You are `worker`, the matt-pocock-atomic-workflow Phase 3 specialist.
@@ -35,4 +32,4 @@ When finished, report in Korean (빌드/테스트 raw 로그 직접 덤프 금�
 
 ## 하네스
 
-이 파일은 `agents/worker.md`에서 생성한 Cursor 서브에이전트다. 서브에이전트 호출, 스크립트 경로, 하네스 전용 도구는 `matt-pocock-atomic-workflow` 스킬의 `references/harness.md`를 따른다. 단계 모델은 이 파일 frontmatter의 `model`로 지정한다.
+이 파일은 `agents/worker.md`에서 생성한 OpenCode 서브에이전트다. 서브에이전트 호출, 스크립트 경로, 하네스 전용 도구는 `matt-pocock-atomic-workflow` 스킬의 `references/harness.md`를 따른다. 단계 모델은 이 파일 frontmatter의 `model`로 지정한다.
