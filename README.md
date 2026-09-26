@@ -2,7 +2,7 @@ English | [한국어](README.kr.md)
 
 # matt-pocock-atomic-workflow
 
-A Pi-based coding workflow package.  
+A coding workflow package for Pi, also installable into Cursor, OpenCode, Claude Code, and Codex projects.  
 `/matt-pocock-atomic-explore` (optional) → `/matt-pocock-atomic-plan` → `/matt-pocock-atomic-task` → `/matt-pocock-atomic-execute` → `/matt-pocock-atomic-review` → `/matt-pocock-atomic-wrapup`
 
 ---
@@ -18,7 +18,7 @@ A Pi-based coding workflow package.
 7. [How to change models per phase](#7-how-to-change-models-per-phase)
 8. [Don'ts](#8-donts)
 9. [Bundled matt-pocock skills](#9-bundled-matt-pocock-skills)
-10. [Use in Cursor](#10-use-in-cursor)
+10. [Use in Cursor, OpenCode, Claude Code, and Codex](#10-use-in-cursor-opencode-claude-code-and-codex)
 11. [Future work](#11-future-work)
 
 ---
@@ -175,8 +175,8 @@ For more detail, run `/matt-pocock-atomic-models`.
 
 - **No push**: `git push` only when you explicitly want it. The agent does not push.
 - **No secrets**: Do not commit tokens, API keys, or `.env`, and do not put them in worker briefs.
-- **No Cursor IDE slash commands**: This package is for Pi by default. To use it in Cursor, follow [Use in Cursor](#10-use-in-cursor) instead.
-- **Do not edit agent files directly**: Changes to `agents/*.md` and `prompts/*.md` are overwritten on package update. Change models only in settings.json.
+- **Other harnesses**: `pi install` only sets up Pi. For Cursor, OpenCode, Claude Code, or Codex, follow [section 10](#10-use-in-cursor-opencode-claude-code-and-codex).
+- **Do not edit installed package files**: Installed `agents/*.md`, `prompts/*.md`, and skills are overwritten on package update. In Pi, change models only in settings.json.
 
 ---
 
@@ -198,41 +198,62 @@ The bundled snapshot's source repository, revision, and MIT license are recorded
 
 ---
 
-## 10. Use in Cursor
+## 10. Use in Cursor, OpenCode, Claude Code, and Codex
 
-The same subagents and skills run in Cursor. `agents/`, `prompts/`, and `skills/` stay the single source; Cursor-ready files are generated from them.
+Every slash command is a skill: `skills/matt-pocock-atomic-<name>/SKILL.md` holds the command logic once, in harness-neutral wording, with `disable-model-invocation: true` so it only runs when you call it. Harness differences (how to spawn subagents, where arguments arrive, script paths, harness-only tools) live in one place: `skills/matt-pocock-atomic-workflow/references/harness.md`.
 
-| Cursor file | Source | What it is |
-|---|---|---|
-| `.cursor/agents/*.md` (5: `explorer`, `planner`, `tasker`, `worker`, `reviewer`) | `agents/*.md` | Subagents with Cursor frontmatter (`name`, `description`, `model: inherit`, `readonly: false`, `is_background: true`). Invoke with `/explorer` … or "Use the planner subagent …". |
-| `.cursor/commands/matt-pocock-atomic-*.md` (12) | `prompts/*.md` | Slash commands as plain markdown (no frontmatter). Text after the command becomes the command's input. |
-| `skills/*` (copied as-is) | `skills/*` | Standard Agent Skills, no conversion needed. |
+| Harness | Slash command | Subagents | Per-phase model |
+|---|---|---|---|
+| Pi | `/matt-pocock-atomic-plan` (thin shim in `prompts/`) | `agents/*.md` | `settings.json` `subagents.agentOverrides` |
+| Cursor | `/matt-pocock-atomic-plan` (the skill itself) | `.cursor/agents/*.md` | `model` in the agent file |
+| OpenCode | `/matt-pocock-atomic-plan` (thin shim in `.opencode/commands/`) | `.opencode/agents/*.md` | `model` in the agent file |
+| Claude Code | `/matt-pocock-atomic-plan` (the skill itself) | `.claude/agents/*.md` | `model` in the agent file |
+| Codex | `$matt-pocock-atomic-plan` (the skill itself) | none (spawn with the role in the message) | session model |
+
+All seven agents (`explorer`, `planner`, `tasker`, `worker`, `reviewer`, `tester`, `cli-delegate`) are generated for Cursor, OpenCode, and Claude Code.
 
 ### Install into a project
 
 ```bash
 # from this repository (or the installed npm package)
-node scripts/install-cursor.mjs --target /path/to/project
+node scripts/install.mjs --harness cursor --target /path/to/project
+node scripts/install.mjs --harness opencode,claude --target /path/to/project
 ```
 
-This copies `skills/*` → `<project>/.agents/skills/*` (portable: Cursor, Claude Code, and Codex all read it; pass `--skills-dir .cursor/skills` for a Cursor-only install) plus `.cursor/agents/` and `.cursor/commands/`. Existing files are kept unless you pass `--force`. To pin a phase model at install time, repeat `--set-model`:
+| `--harness` | Skills (all of `skills/*`, including command skills) | Agents | Command shims |
+|---|---|---|---|
+| `cursor` | `.agents/skills/` | `.cursor/agents/` | none needed |
+| `opencode` | `.agents/skills/` | `.opencode/agents/` | `.opencode/commands/` |
+| `claude` | `.claude/skills/` | `.claude/agents/` | none needed |
+| `codex` | `.agents/skills/` | none | none needed |
+
+Existing files are kept unless you pass `--force`. `--skills-dir` overrides the skills location, and `--no-skills` / `--no-agents` / `--no-commands` skip a component. To pin a phase model at install time, repeat `--set-model`:
 
 ```bash
-node scripts/install-cursor.mjs --target /path/to/project --set-model worker=composer-2.5[]
+node scripts/install.mjs --harness cursor --target /path/to/project --set-model worker=composer-2.5[]
 ```
 
-### Per-phase models and maintenance
+If the project still has an older install's `.cursor/commands/matt-pocock-atomic-*.md`, delete those files: the command skills now provide the same slash commands, and keeping both shows each command twice. The installer and `doctor` list them.
 
-- In Cursor, pin a phase model in `.cursor/agents/<agent>.md` frontmatter (`model: composer-2.5[]`, `claude-opus-5[effort=high]`, …). There is no `settings.json` override or `fallbackModels` chain; Cursor falls back to a compatible model automatically.
-- Delegation uses the Task tool with background subagents (the Cursor equivalent of Pi's `async: true`).
-- After editing `agents/*.md` or `prompts/*.md`, regenerate and verify:
+### Maintaining this package
+
+Edit only the sources. Everything else is generated.
+
+| Change | Edit | Generated from it |
+|---|---|---|
+| Command behavior | `skills/matt-pocock-atomic-<name>/SKILL.md` | `prompts/<name>.md`, `.opencode/commands/<name>.md` |
+| Agent role | `agents/<agent>.md` | `.cursor/agents/`, `.opencode/agents/`, `.claude/agents/` |
+| Harness differences | `skills/matt-pocock-atomic-workflow/references/harness.md` | — |
+| Workflow scripts | `scripts/work-status.mjs`, `scripts/run-done.mjs` | copies in `skills/matt-pocock-atomic-workflow/scripts/` |
 
 ```bash
-node scripts/sync-cursor.mjs          # regenerate .cursor/agents + .cursor/commands
-node scripts/sync-cursor.mjs --check  # drift check (for CI)
-npm test                              # includes cursor-sync tests
-node scripts/doctor.mjs               # section 3 checks Cursor sync + install state
+node scripts/sync-harness.mjs          # regenerate, and delete generated files whose source is gone
+node scripts/sync-harness.mjs --check  # drift check (for CI)
+npm test                               # includes harness-sync tests
+node scripts/doctor.mjs                # section 3 checks sync + install state
 ```
+
+To add a command, create `skills/matt-pocock-atomic-<name>/SKILL.md` (with `disable-model-invocation: true` and a description ending in "사용자가 직접 호출할 때만 쓴다.") and run `node scripts/sync-harness.mjs`.
 
 ---
 
@@ -240,7 +261,6 @@ node scripts/doctor.mjs               # section 3 checks Cursor sync + install s
 
 These items are documented only. They are not implemented in this package yet. Priorities and the harness-unification plan live in [ROADMAP.md](ROADMAP.md) (Korean).
 
-- **Cursor sync drift**: `tester` is not in Cursor `AGENT_NAMES`. After `prompts/` or `agents/` edits, `node scripts/sync-cursor.mjs` is allowed; do not add `tester` to Cursor `AGENT_NAMES` in this slice.
 - **README agent keys**: some package agents (for example `tester`, `cli-delegate`) are missing from the settings key list above.
 - **CONTEXT.md vs `run-done` evidence path**: CONTEXT.md documents `runs/<slug>/<id>.done.json`, while `scripts/run-done.mjs` writes `${logPath}.done.json`.
 - **Parallel worktree integration**: there is no merge step for sibling worktrees.

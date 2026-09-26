@@ -2,7 +2,7 @@
 
 # matt-pocock-atomic-workflow
 
-Pi 기반 코딩 워크플로 패키지.  
+Pi용 코딩 워크플로 패키지. Cursor·OpenCode·Claude Code·Codex 프로젝트에도 설치할 수 있다.  
 `/matt-pocock-atomic-explore`(선택) → `/matt-pocock-atomic-plan` → `/matt-pocock-atomic-task` → `/matt-pocock-atomic-execute` → `/matt-pocock-atomic-review` → `/matt-pocock-atomic-wrapup`
 
 ---
@@ -18,7 +18,7 @@ Pi 기반 코딩 워크플로 패키지.
 7. [단계별 모델 바꾸는 법](#7-단계별-모델-바꾸는-법)
 8. [하지 말 것](#8-하지-말-것)
 9. [번들된 matt-pocock 스킬](#9-번들된-matt-pocock-스킬)
-10. [Cursor에서 쓰기](#10-cursor에서-쓰기)
+10. [Cursor·OpenCode·Claude Code·Codex에서 쓰기](#10-cursoropencodeclaude-codecodex에서-쓰기)
 11. [추후 과제](#11-추후-과제)
 
 ---
@@ -175,8 +175,8 @@ PLAN에 막힌 질문(보안·범위·데이터 손실)이 있으면 거기서 �
 
 - **푸시 금지**: `git push`는 직접 원할 때만. 에이전트는 푸시하지 않는다.
 - **비밀 금지**: 토큰·API 키·`.env`를 커밋하거나 워커 브리프에 넣지 않는다.
-- **Cursor IDE 슬래시**: 기본은 Pi용이다. Cursor에서 쓰려면 [Cursor에서 쓰기](#10-cursor에서-쓰기)를 따른다.
-- **에이전트 파일 직접 편집 금지**: `agents/*.md`와 `prompts/*.md`를 직접 고치면 패키지 업데이트 시 덮어써진다. 모델은 settings.json에서만 바꾼다.
+- **다른 하네스**: `pi install`은 Pi만 설정한다. Cursor·OpenCode·Claude Code·Codex는 [10절](#10-cursoropencodeclaude-codecodex에서-쓰기)을 따른다.
+- **설치된 패키지 파일 직접 편집 금지**: 설치된 `agents/*.md`, `prompts/*.md`, 스킬은 패키지 업데이트 시 덮어써진다. Pi에서는 모델을 settings.json에서만 바꾼다.
 
 ---
 
@@ -198,41 +198,62 @@ PLAN에 막힌 질문(보안·범위·데이터 손실)이 있으면 거기서 �
 
 ---
 
-## 10. Cursor에서 쓰기
+## 10. Cursor·OpenCode·Claude Code·Codex에서 쓰기
 
-같은 서브에이전트와 스킬을 Cursor에서도 실행할 수 있다. `agents/`, `prompts/`, `skills/`가 단일 소스이며, Cursor용 파일은 여기서 생성된다.
+슬래시 커맨드는 모두 스킬이다. `skills/matt-pocock-atomic-<이름>/SKILL.md` 하나에 커맨드 로직을 하네스 중립 문구로 쓰고, `disable-model-invocation: true`로 사용자가 부를 때만 실행되게 한다. 하네스마다 다른 부분(서브에이전트 호출법, 인자가 들어오는 방식, 스크립트 경로, 하네스 전용 도구)은 `skills/matt-pocock-atomic-workflow/references/harness.md` 한 곳에만 둔다.
 
-| Cursor 파일 | 원본 | 설명 |
-|---|---|---|
-| `.cursor/agents/*.md` (5종: `explorer`, `planner`, `tasker`, `worker`, `reviewer`) | `agents/*.md` | Cursor frontmatter(`name`, `description`, `model: inherit`, `readonly: false`, `is_background: true`)를 갖춘 서브에이전트. `/explorer` … 또는 "Use the planner subagent …"로 호출한다. |
-| `.cursor/commands/matt-pocock-atomic-*.md` (12종) | `prompts/*.md` | frontmatter 없는 plain markdown 슬래시 커맨드. 슬래시 뒤 텍스트가 커맨드 입력이 된다. |
-| `skills/*` (그대로 복사) | `skills/*` | 표준 Agent Skills 형식이라 변환이 필요 없다. |
+| 하네스 | 슬래시 커맨드 | 서브에이전트 | 단계 모델 |
+|---|---|---|---|
+| Pi | `/matt-pocock-atomic-plan` (`prompts/`의 얇은 shim) | `agents/*.md` | `settings.json`의 `subagents.agentOverrides` |
+| Cursor | `/matt-pocock-atomic-plan` (스킬 직접 호출) | `.cursor/agents/*.md` | 에이전트 파일의 `model` |
+| OpenCode | `/matt-pocock-atomic-plan` (`.opencode/commands/`의 얇은 shim) | `.opencode/agents/*.md` | 에이전트 파일의 `model` |
+| Claude Code | `/matt-pocock-atomic-plan` (스킬 직접 호출) | `.claude/agents/*.md` | 에이전트 파일의 `model` |
+| Codex | `$matt-pocock-atomic-plan` (스킬 직접 호출) | 없음 (message에 역할을 적어 띄운다) | 세션 모델 |
+
+에이전트 7종(`explorer`, `planner`, `tasker`, `worker`, `reviewer`, `tester`, `cli-delegate`)이 모두 Cursor·OpenCode·Claude Code용으로 생성된다.
 
 ### 프로젝트에 설치
 
 ```bash
 # 이 저장소(또는 설치된 npm 패키지)에서 실행
-node scripts/install-cursor.mjs --target /path/to/project
+node scripts/install.mjs --harness cursor --target /path/to/project
+node scripts/install.mjs --harness opencode,claude --target /path/to/project
 ```
 
-`skills/*` → `<project>/.agents/skills/*`(Cursor·Claude Code·Codex가 모두 읽는 portable 위치. Cursor 전용으로 두려면 `--skills-dir .cursor/skills`)와 `.cursor/agents/`, `.cursor/commands/`를 복사한다. 이미 있는 파일은 유지되며 `--force`일 때만 덮어쓴다. 설치 시 단계 모델을 고정하려면 `--set-model`을 반복 지정한다:
+| `--harness` | 스킬 (커맨드 스킬 포함 `skills/*` 전체) | 에이전트 | 커맨드 shim |
+|---|---|---|---|
+| `cursor` | `.agents/skills/` | `.cursor/agents/` | 필요 없음 |
+| `opencode` | `.agents/skills/` | `.opencode/agents/` | `.opencode/commands/` |
+| `claude` | `.claude/skills/` | `.claude/agents/` | 필요 없음 |
+| `codex` | `.agents/skills/` | 없음 | 필요 없음 |
+
+이미 있는 파일은 유지되며 `--force`일 때만 덮어쓴다. `--skills-dir`로 스킬 위치를 바꾸고, `--no-skills` / `--no-agents` / `--no-commands`로 구성 요소를 건너뛴다. 설치 시 단계 모델을 고정하려면 `--set-model`을 반복 지정한다:
 
 ```bash
-node scripts/install-cursor.mjs --target /path/to/project --set-model worker=composer-2.5[]
+node scripts/install.mjs --harness cursor --target /path/to/project --set-model worker=composer-2.5[]
 ```
 
-### 단계별 모델과 유지보수
+예전 설치가 남긴 `.cursor/commands/matt-pocock-atomic-*.md`가 있으면 지운다. 이제 커맨드 스킬이 같은 슬래시 커맨드를 제공하므로, 둘 다 두면 커맨드가 두 번씩 보인다. 설치 스크립트와 `doctor`가 해당 파일을 알려 준다.
 
-- Cursor에서는 단계 모델을 `.cursor/agents/<에이전트>.md` frontmatter의 `model`로 지정한다(`composer-2.5[]`, `claude-opus-5[effort=high]` 등). `settings.json` override나 `fallbackModels` 체인은 없으며, Cursor가 자동으로 호환 모델로 폴백한다.
-- 위임은 Task 툴의 백그라운드 서브에이전트로 수행한다(Pi의 `async: true`와 동등).
-- `agents/*.md`나 `prompts/*.md`를 고친 뒤에는 재생성하고 검증한다:
+### 패키지 유지보수
+
+원본만 고친다. 나머지는 생성물이다.
+
+| 바꿀 것 | 고칠 파일 | 여기서 생성되는 파일 |
+|---|---|---|
+| 커맨드 동작 | `skills/matt-pocock-atomic-<이름>/SKILL.md` | `prompts/<이름>.md`, `.opencode/commands/<이름>.md` |
+| 에이전트 역할 | `agents/<에이전트>.md` | `.cursor/agents/`, `.opencode/agents/`, `.claude/agents/` |
+| 하네스 차이 | `skills/matt-pocock-atomic-workflow/references/harness.md` | — |
+| 워크플로 스크립트 | `scripts/work-status.mjs`, `scripts/run-done.mjs` | `skills/matt-pocock-atomic-workflow/scripts/`의 복사본 |
 
 ```bash
-node scripts/sync-cursor.mjs          # .cursor/agents + .cursor/commands 재생성
-node scripts/sync-cursor.mjs --check  # 드리프트 검사(CI용)
-npm test                              # cursor-sync 테스트 포함
-node scripts/doctor.mjs               # 3번 섹션에서 Cursor 동기화·설치 상태 점검
+node scripts/sync-harness.mjs          # 재생성 + 원본이 사라진 생성물 삭제
+node scripts/sync-harness.mjs --check  # 드리프트 검사(CI용)
+npm test                               # harness-sync 테스트 포함
+node scripts/doctor.mjs                # 3번 섹션에서 동기화·설치 상태 점검
 ```
+
+커맨드를 추가하려면 `skills/matt-pocock-atomic-<이름>/SKILL.md`를 만들고(`disable-model-invocation: true`, description 끝에 "사용자가 직접 호출할 때만 쓴다.") `node scripts/sync-harness.mjs`를 실행한다.
 
 ---
 
@@ -240,7 +261,6 @@ node scripts/doctor.mjs               # 3번 섹션에서 Cursor 동기화·설�
 
 이번 패키지에서 구현하지 않고 README에만 남긴 항목이다. 우선순위와 하네스 통합 계획은 [ROADMAP.md](ROADMAP.md)에 있다.
 
-- **Cursor 동기화 드리프트**: `tester`는 Cursor `AGENT_NAMES`에 없다. `prompts/`·`agents/` 변경 후 `node scripts/sync-cursor.mjs`는 허용하되, tester를 `AGENT_NAMES`에 추가하지 않는다.
 - **README 에이전트 키 누락**: 패키지 에이전트 일부(`tester`, `cli-delegate` 등)가 위 설정 키 목록에 없다.
 - **CONTEXT.md vs `run-done` 증거 경로**: CONTEXT.md는 `runs/<slug>/<id>.done.json`인데 `scripts/run-done.mjs`는 `${logPath}.done.json`을 쓴다.
 - **병렬 워크트리 통합**: 형제 워크트리 merge 단계가 없다.

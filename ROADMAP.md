@@ -15,7 +15,7 @@ OmO의 "사람 개입은 실패 신호"를 그대로 따르지 않는다. 아래
 
 | 단계 | 항목 | 수정 범위 | 상태 |
 |---|---|---|---|
-| 0 | 하네스 통합: 스킬을 단일 소스로, 커맨드는 생성된 얇은 shim | `skills/`, `prompts/`, `.cursor/`, `scripts/sync-*` | 설계 완료 |
+| 0 | 하네스 통합: 스킬을 단일 소스로, 커맨드는 생성된 얇은 shim | `skills/`, `prompts/`, `.cursor/`, `.opencode/`, `.claude/`, `scripts/sync-harness.mjs`, `scripts/install.mjs` | 완료 |
 | 1 | LIGHT/HEAVY 작업 등급 | `SKILL.md`, `agents/tasker.md`, `reference.md` | 대기 |
 | 1 | reviewer ↔ tester 순서 정리 | `SKILL.md`, `agents/reviewer.md`, `agents/tester.md` | 대기 |
 | 1 | 적대적 QA 트리거 맵 | `testing.md`, REVIEW 템플릿 | 대기 |
@@ -28,13 +28,13 @@ OmO의 "사람 개입은 실패 신호"를 그대로 따르지 않는다. 아래
 | 3 | 배운 점 누적(`LEARNINGS.md`) | `SKILL.md`, `agents/worker.md` | 대기 |
 | 3 | 난이도별 워커 변형 | `agents/`, `settings.example.json` | 대기 |
 
-0단계를 먼저 하는 이유: 1~3단계는 모두 커맨드와 에이전트 본문을 고친다. 지금 구조에서는 같은 수정을 Pi 원본, Cursor 생성본, (추가될) OpenCode 파일에 각각 반영해야 한다. 통합을 먼저 끝내면 이후 항목은 스킬 한 곳만 고치면 된다.
+0단계를 먼저 한 이유: 1~3단계는 모두 커맨드와 에이전트 본문을 고친다. 통합 전 구조에서는 같은 수정을 Pi 원본, Cursor 생성본, (추가될) OpenCode 파일에 각각 반영해야 했다. 이제 커맨드는 `skills/matt-pocock-atomic-<이름>/SKILL.md`, 에이전트는 `agents/<에이전트>.md` 한 곳만 고친다.
 
 ---
 
 ## 0단계: 하네스 통합
 
-### 현재 문제
+### 통합 전 문제
 
 - 커맨드 로직이 `prompts/*.md`(Pi 원본)에 있고, `scripts/sync-cursor.mjs`가 문자열 치환 규칙 16개(`PI_TO_CURSOR_PHRASES`)로 `.cursor/commands/`를 만든다. 원본 문구가 조금만 바뀌어도 치환이 조용히 빠진다.
 - OpenCode(`.opencode/commands/`), Claude Code(`.claude/`)를 지원하려면 치환 규칙 세트가 하네스마다 늘어난다.
@@ -59,56 +59,67 @@ OmO의 "사람 개입은 실패 신호"를 그대로 따르지 않는다. 아래
 - Pi와 OpenCode만 커맨드 이름(`/matt-pocock-atomic-plan`)을 유지하려면 shim이 필요하다. shim은 "이 스킬을 읽고 따르라 + 인자"만 담으므로 로직이 바뀌어도 다시 고칠 일이 없다.
 - 하네스별 차이(서브에이전트 호출법, 인자 문법)는 문자열 치환이 아니라, 스킬 안의 하네스 어댑터 표 하나로 흡수한다. OmO도 각 스킬 머리에 "Harness Tool Compatibility" 표를 두는 같은 방식을 쓴다.
 
-### 목표 구조
+### 구현된 구조
 
 ```text
-skills/                                   # 단일 소스 (설치 시 <project>/.agents/skills/)
+skills/                                   # 단일 소스 (설치 시 <project>/.agents/skills/ 또는 .claude/skills/)
 ├── matt-pocock-atomic-workflow/
 │   ├── SKILL.md
-│   └── references/
-│       ├── harness.md                    # 하네스 판별 + 위임/인자/경로 어댑터 표
-│       └── roles/{explorer,planner,tasker,worker,reviewer,tester}.md
+│   ├── references/harness.md             # 하네스 판별 + 위임/입력/스크립트 경로/전용 도구 표
+│   └── scripts/{work-status,run-done}.mjs # 생성: scripts/ 원본의 복사본
 ├── matt-pocock-atomic-plan/SKILL.md      # disable-model-invocation: true, 커맨드 로직 본문
 ├── matt-pocock-atomic-execute/SKILL.md
-└── ...                                   # 커맨드마다 스킬 1개
-prompts/*.md                              # 생성: Pi shim (`${@}` 전달)
+└── ...                                   # 커맨드마다 스킬 1개 (12개)
+agents/*.md                               # 에이전트 단일 소스: Pi frontmatter + 역할 본문
+prompts/*.md                              # 생성: Pi shim (`${@:-(없음)}` 전달)
 .opencode/commands/*.md                   # 생성: OpenCode shim (`$ARGUMENTS` 전달)
-agents/*.md                               # Pi 에이전트: frontmatter(모델·도구) + roles/<역할>.md 포인터
-.cursor/agents/*.md, .opencode/agents/*.md # 생성: 하네스별 frontmatter + 같은 포인터
+.cursor/agents/*.md                       # 생성: Cursor frontmatter + 같은 본문
+.opencode/agents/*.md                     # 생성: OpenCode frontmatter(mode: subagent) + 같은 본문
+.claude/agents/*.md                       # 생성: Claude Code frontmatter(skills, background) + 같은 본문
 ```
 
-`.cursor/commands/`는 제거한다. 같은 이름의 스킬과 커맨드가 함께 있으면 Cursor 슬래시 메뉴에 두 번 뜬다.
+`.cursor/commands/`는 제거했다. 같은 이름의 스킬과 커맨드가 함께 있으면 Cursor 슬래시 메뉴에 두 번 뜬다.
+
+설계에서 바꾼 점:
+
+- 에이전트 본문을 `references/roles/`로 옮기지 않았다. 에이전트 본문은 이미 `agents/*.md` 하나에서 생성되고 있었고, 포인터로 바꾸면 서브에이전트가 역할 파일을 한 번 더 읽어야 해서 지시 누락 위험만 늘어난다. 생성기가 frontmatter만 하네스별로 바꾼다.
+- Pi shim은 스킬 이름이 아니라 "`matt-pocock-atomic-workflow` 스킬과 같은 폴더의 `<커맨드>/SKILL.md`"를 가리킨다. `disable-model-invocation: true`인 스킬은 Pi 모델 목록에서 빠져 경로를 알 수 없지만, 워크플로 스킬 위치(`<location>`)는 모델에 보이기 때문이다. doctor의 패키지 스킬 필터가 걸려 있어도 파일 경로로 읽으므로 동작한다.
+- 커맨드 기본 입력값은 shim이 아니라 커맨드 스킬 본문 "입력:" 줄에 둔다. 스킬을 직접 호출하는 Cursor·Claude Code·Codex에서도 같은 기본값이 적용된다.
+- `tester`와 `cli-delegate`를 포함한 에이전트 7종을 모두 생성한다. Claude Code용 `.claude/agents/`도 생성한다.
 
 shim 예시(Pi, 생성물):
 
 ```markdown
 ---
-description: matt-pocock-atomic-workflow Phase 1. PLAN을 작성하고 승인되면 나머지 파이프라인을 자동 실행.
+# 생성 파일 - skills/matt-pocock-atomic-plan/SKILL.md 에서 scripts/sync-harness.mjs 로 만든다. 직접 고치지 않는다.
+description: "matt-pocock-atomic-workflow Phase 1. grilling preflight 후 PLAN을 작성하고 승인되면 나머지 파이프라인을 자동 실행."
 argument-hint: "[intent | 계획만]"
 ---
-`matt-pocock-atomic-plan` 스킬을 읽고 그대로 따른다.
+`matt-pocock-atomic-workflow` 스킬과 같은 폴더에 있는 `matt-pocock-atomic-plan/SKILL.md` 커맨드 스킬을 읽고 그대로 따른다. 이 세션은 Pi다.
 
-입력: ${@:-현재 대화의 요청}
+입력: ${@:-(없음)}
 ```
 
 ### 작업 목록
 
-- [ ] `references/harness.md` 작성: 하네스 판별(Pi는 기존 `PI_CODING_AGENT`/`PI_SESSION_ID`, 나머지 하네스의 환경 변수는 구현 시 각 하네스에서 확인), 서브에이전트 호출법(Pi `subagent` async, Cursor Task 백그라운드, OpenCode `task`, Claude Code Agent, Codex `spawn_agent`), 스크립트 경로(`scripts/` vs `.agents/skills/.../scripts/`).
-- [ ] `prompts/*.md` 12개 본문을 `skills/matt-pocock-atomic-<cmd>/SKILL.md`로 옮기고 하네스 중립 문구로 바꾼다. frontmatter는 `name`, `description`, `disable-model-invocation: true`, `metadata.argument-hint`.
-- [ ] 에이전트 본문을 `references/roles/<역할>.md`로 옮기고, `agents/*.md`는 frontmatter와 포인터만 남긴다.
-- [ ] `scripts/sync-cursor.mjs`를 `scripts/sync-harness.mjs`로 바꾼다. 스킬 frontmatter에서 Pi·OpenCode shim과 하네스별 에이전트 파일을 생성하고, `--check`로 드리프트를 검사한다. 치환 규칙 `PI_TO_CURSOR_PHRASES`는 삭제한다.
-- [ ] `scripts/install-cursor.mjs`를 `scripts/install.mjs --harness cursor|opencode|claude|codex`로 일반화한다. Claude는 `.claude/skills`에 복사(또는 `--link`로 심볼릭 링크)한다.
-- [ ] `doctor.mjs`에 레거시 `.cursor/commands/matt-pocock-atomic-*.md` 잔존 경고를 추가한다.
-- [ ] 테스트: 모든 커맨드 스킬에 `disable-model-invocation: true`가 있는지, shim이 스킬 이름만 참조하는지, 생성물이 원본과 일치하는지 검사한다.
-- [ ] README 두 언어의 설치·Cursor 섹션을 새 구조로 갱신한다.
+- [x] `references/harness.md` 작성: 하네스 판별(Pi는 `PI_CODING_AGENT`/`PI_SESSION_ID`, 나머지는 사용 가능한 도구와 에이전트 목록), 서브에이전트 호출법(Pi `subagent` async, Cursor Task 백그라운드, OpenCode `task`, Claude Code Agent, Codex `spawn_agent`), 커맨드 입력, 스크립트 경로, 하네스 전용 도구.
+- [x] `prompts/*.md` 12개 본문을 `skills/matt-pocock-atomic-<cmd>/SKILL.md`로 옮기고 하네스 중립 문구로 바꿨다. frontmatter는 `name`, `description`(끝에 "사용자가 직접 호출할 때만 쓴다."), `disable-model-invocation: true`, `metadata.argument-hint`.
+- [x] ~~에이전트 본문을 `references/roles/<역할>.md`로 옮긴다.~~ 하지 않기로 했다(위 「설계에서 바꾼 점」).
+- [x] `scripts/sync-cursor.mjs`를 `scripts/sync-harness.mjs`로 교체했다. 치환 규칙 `PI_TO_CURSOR_PHRASES`는 없앴다. 원본이 사라진 생성물은 쓰기 모드에서 지우고 `--check`에서 보고한다.
+- [x] `scripts/install-cursor.mjs`를 `scripts/install.mjs --harness cursor,opencode,claude,codex`로 일반화했다. Claude Code는 `.claude/skills`에 복사한다. `--link`(심볼릭 링크)는 넣지 않았다.
+- [x] `doctor.mjs` 3번 섹션을 하네스 전체 진단으로 바꾸고, 레거시 `.cursor/commands/matt-pocock-atomic-*.md` 잔존 경고를 추가했다.
+- [x] 테스트 `tests/harness-sync.test.mjs`: 커맨드 스킬의 `disable-model-invocation`·description 가드·Pi 전용 문구 부재, shim이 스킬만 가리키는지, 생성물 일치와 옛 생성물 삭제, 하네스별 설치, doctor 진단.
+- [x] README 두 언어의 설치·유지보수 섹션을 새 구조로 갱신했다.
 
 완료 기준: 커맨드 로직을 바꿀 때 `skills/` 아래 파일만 수정하고 `node scripts/sync-harness.mjs --check && npm test`가 통과한다.
 
-### 위험과 미확인 사항
+### 검증한 것과 남은 확인
 
-- Pi에서 패키지 스킬 12개가 늘어난다. `disable-model-invocation: true`면 모델 목록에서 숨겨지지만, `enableSkillCommands` 설정에 따라 `/skill:` 메뉴에 노출된다. 실제 Pi 세션에서 shim과 `/skill:` 중복 표시를 확인해야 한다.
-- OpenCode는 스킬 frontmatter의 알 수 없는 필드를 무시하므로 `disable-model-invocation`이 적용되지 않는다. 커맨드 스킬이 모델에 자동 선택될 수 있으니 `opencode.json`의 `permission.skill`로 `matt-pocock-atomic-*`(workflow 제외)를 `deny`하는 예시를 설치 안내에 넣는다. 이렇게 막으면 shim이 `skill` 도구로 로드할 수 없으므로, OpenCode shim은 스킬 파일 경로를 직접 읽도록 만든다.
-- 기존 사용자의 `~/.pi/agent/prompts/`나 프로젝트 `.cursor/commands/` 복사본이 새 스킬을 가린다. doctor 경고와 README 삭제 안내로 대응한다.
+- Pi 0.87.1 로더(`loadSkillsFromDir`, `loadPromptTemplates`)로 확인: 스킬 21개가 진단 없이 로드되고, 커맨드 스킬 12개는 모델 스킬 목록에서 숨겨진다. shim 12개가 `description`·`argument-hint`와 함께 로드되고 `/matt-pocock-atomic-plan 로그인 기능 추가`가 `입력: 로그인 기능 추가`로, 인자 없는 호출이 `입력: (없음)`으로 치환된다.
+- OpenCode 1.18.32로 설치 프로젝트에서 확인: 에이전트 7종이 subagent로 뜨고, `cli-delegate`는 `edit` 권한이 `deny`다. 커맨드 12개와 스킬 13개(커맨드 12 + 워크플로)가 인식된다.
+- OpenCode는 `disable-model-invocation`을 모르므로 커맨드 스킬이 모델에 보인다. `permission.skill` deny 대신 description 끝의 "사용자가 직접 호출할 때만 쓴다." 가드로 자동 선택을 막았다. 자동 선택이 실제로 생기면 그때 permission 예시를 추가한다.
+- 실제 대화 세션에서 확인하지 못한 것: Pi `/skill:` 메뉴와 shim 중복 표시, Cursor·Claude Code의 슬래시 메뉴 표시와 생성된 에이전트 로드. Claude Code 에이전트 frontmatter는 공식 문서 필드(`name`, `description`, `skills`, `disallowedTools`, `model`, `background`)만 쓴다.
+- 기존 사용자의 `~/.pi/agent/prompts/`나 프로젝트 `.cursor/commands/` 복사본이 새 스킬을 가린다. doctor 경고, 설치 스크립트 안내, README 삭제 안내로 대응한다.
 
 ---
 
@@ -123,7 +134,7 @@ argument-hint: "[intent | 계획만]"
 ### reviewer ↔ tester 순서 정리
 
 - 문제: `tester`는 REVIEW 파일이 있어야 실행되는데, `reviewer`는 tester 결과를 재검증하라고 되어 있어 순환한다. `tester`는 Cursor 에이전트 목록에도 없다.
-- 적용: 순서를 worker → (HEAVY면 tester) → reviewer로 고정한다. reviewer는 최종 게이트 하나로 남는다. `tester`의 "REVIEW 필요" 조건을 삭제하고, 0단계 생성기 목록에 넣는다.
+- 적용: 순서를 worker → (HEAVY면 tester) → reviewer로 고정한다. reviewer는 최종 게이트 하나로 남는다. `tester`의 "REVIEW 필요" 조건을 삭제한다. (`tester`는 0단계에서 모든 하네스 생성 목록에 들어갔다.)
 
 ### 적대적 QA 트리거 맵
 
@@ -219,7 +230,7 @@ README 11장의 항목은 아래 단계에서 함께 처리한다.
 
 | README 추후 과제 | 처리 단계 |
 |---|---|
-| Cursor 동기화 드리프트(`tester` 누락) | 0단계 생성기, 1단계 reviewer ↔ tester |
+| Cursor 동기화 드리프트(`tester` 누락) | 0단계에서 해결 (에이전트 7종 모두 생성) |
 | README 에이전트 키 누락 | 0단계 README 갱신 |
 | CONTEXT.md vs `run-done` 증거 경로 | 2단계 ledger와 경로 통일 |
 | 병렬 워크트리 통합 | 선택 항목 병합 규칙 |
