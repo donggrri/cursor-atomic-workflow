@@ -8,15 +8,15 @@ description: >-
 
 # Atomic Workflow (matt-pocock-atomic-workflow)
 
-Pi 패키지 스킬이다. 프롬프트·에이전트는 이 패키지가 등록한다. `~/.agents/skills/matt-pocock-atomic-workflow`, `~/.pi/agent/prompts/g-*.md`, `~/.pi/agent/prompts/matt-pocock-atomic-*.md`, `~/.pi/agent/agents/g-*.md`, `~/.pi/agent/agents/{explorer,planner,tasker,worker,reviewer}.md`를 남겨 두면 패키지가 가려지고 충돌 경고가 난다.
+Pi 패키지이면서 Cursor·OpenCode·Claude Code·Codex 프로젝트에 설치할 수 있는 스킬이다. 커맨드 로직은 같은 폴더에 있는 `matt-pocock-atomic-<이름>/SKILL.md` 커맨드 스킬이 단일 소스다. Pi `prompts/`와 `.opencode/commands/`는 그 스킬을 가리키는 생성 shim이다. Pi에서 `~/.agents/skills/matt-pocock-atomic-workflow`, `~/.pi/agent/prompts/g-*.md`, `~/.pi/agent/prompts/matt-pocock-atomic-*.md`, `~/.pi/agent/agents/g-*.md`, `~/.pi/agent/agents/{explorer,planner,tasker,worker,reviewer}.md`를 남겨 두면 패키지가 가려지고 충돌 경고가 난다.
 
-사용자에게는 한국어로 말한다. 템플릿은 [reference.md](reference.md), 위임은 [workers.md](workers.md), 모델은 [models.md](models.md), 테스트는 [testing.md](testing.md)를 이 파일을 읽은 뒤에만 연다.
+사용자에게는 한국어로 말한다. 하네스별 차이는 [references/harness.md](references/harness.md), 템플릿은 [reference.md](reference.md), 위임은 [workers.md](workers.md), 모델은 [models.md](models.md), 테스트는 [testing.md](testing.md)를 이 파일을 읽은 뒤에만 연다.
 
 ## 바로 할 일
 
 1. 이 파일 전체를 읽는다.
-2. 하네스를 가른다. `PI_CODING_AGENT` 또는 `PI_SESSION_ID`가 있으면 **Pi**. 아니면 **Cursor**.
-3. Cursor면 채팅 제목을 3~5단어로 `rename_chat` 한다. Pi면 건너뛴다.
+2. [references/harness.md](references/harness.md)의 「하네스 판별」로 하네스를 가른다. 서브에이전트 호출, 커맨드 입력, 스크립트 경로는 그 문서를 따른다.
+3. Cursor면 채팅 제목을 3~5단어로 `rename_chat` 한다. 다른 하네스는 건너뛴다.
 4. 의도가 **워크플로 자체 수정**인지 **제품 기능**인지 가른다.
 
 **PLAN 위치 규칙** (템플릿 필드는 양쪽 동일. `PREFIX-<slug>.md` 파일명은 유지. 쓰기 전 슬러그 디렉토리를 만든다):
@@ -31,7 +31,7 @@ Pi 패키지 스킬이다. 프롬프트·에이전트는 이 패키지가 등록
 node scripts/work-status.mjs sync <slug>
 ```
 
-Cursor 설치 프로젝트(`scripts/` 없음): `node .agents/skills/matt-pocock-atomic-workflow/scripts/work-status.mjs sync <slug>`
+설치 프로젝트(`scripts/` 없음): `node .agents/skills/matt-pocock-atomic-workflow/scripts/work-status.mjs sync <slug>` (Claude Code는 `.claude/skills/...`. [references/harness.md](references/harness.md) 「스크립트 경로」)
 
 Wrapup 커밋 후: `sync <slug> commit`. 파이프라인 종료: `sync <slug> complete` (또는 `complete <slug>`).
 
@@ -39,7 +39,8 @@ Cursor Cloud Agent는 `CURSOR_CONVERSATION_ID`(`bc-…`)를 `STATUS.json`의 `se
 
 워크플로 자체일 때 같이 맞추는 파일 목록:
 
-- 패키지 저장소: `skills/matt-pocock-atomic-workflow/`, `prompts/`, `agents/`, `README.md`, `settings.example.json`
+- 패키지 저장소: `skills/matt-pocock-atomic-workflow/`, 커맨드 스킬 `skills/matt-pocock-atomic-<이름>/`, `agents/`, `README.md`, `settings.example.json`
+- `prompts/`, `.cursor/agents/`, `.opencode/`, `.claude/agents/`는 생성물이다. 직접 고치지 말고 `node scripts/sync-harness.mjs`로 재생성한다
 - 필요하면 `~/.pi/agent/settings.json`의 `packages`와 `subagents`
 
 ## 단계
@@ -83,6 +84,8 @@ PLAN이 있고 막힌 질문(보안·범위·데이터 손실)이 없으면 부�
 
 ## 하네스
 
+이 문서의 "`async: true`로 띄운다"는 Pi 표기다. 다른 하네스에서는 [references/harness.md](references/harness.md) 「서브에이전트 띄우기」의 백그라운드 호출로 읽는다. 아래는 하네스별 추가 제약이다.
+
 ### Pi
 
 오케스트레이터는 이 세션이다. 구현/계획/리뷰가 필요하면 `subagent` 툴로 아래 에이전트를 띄운다.
@@ -112,13 +115,19 @@ PLAN이 있고 막힌 질문(보안·범위·데이터 손실)이 없으면 부�
 
 - **Plan 모드**는 쓰기 금지. 동의를 구하지 않고 모드를 바꾸지 않는다.
 - 워크트리를 만들었으면 즉시 `cursor-app-control.move_agent_to_root`로 옮긴다.
-- 셸은 PowerShell이다. heredoc 대신 here-string.
+- 셸이 PowerShell(Windows)이면 heredoc 대신 here-string.
 - 이 머신 git 설정·`--no-verify`·force push는 하지 않는다.
 
 런 로그: `~/.matt-pocock-workflow/runs/{shortRepo}/{slug}/`
 증거: `~/.matt-pocock-workflow/evidence/{shortRepo}/<YYYY-MM-DD>-<slug>/`
 
-구현을 CLI에 넘길 때만 [workers.md](workers.md)의 PowerShell 경로를 쓴다.
+구현을 CLI에 넘길 때만 [workers.md](workers.md)의 경로를 쓴다 (Windows는 PowerShell).
+
+### OpenCode · Claude Code · Codex
+
+- 런 로그·증거 경로는 Pi·Cursor와 같다.
+- `rename_chat`, `move_agent_to_root`, `subagent`, `contact_supervisor`는 없다. 부르지 않는다.
+- Codex는 에이전트 정의 파일이 없으므로 `spawn_agent` message에 역할(`agents/<에이전트>.md` 본문 요지)과 강제 스킬 경로를 적는다. 서브에이전트를 띄울 수 없으면 `self`로 진행하고 그 사실을 보고한다.
 
 ## 워크트리
 
@@ -196,7 +205,7 @@ Pi에서는 워크트리를 만든 뒤 그 경로를 작업 `cwd`로 쓴다. Cur
 부모는 파이프라인만 돌린다. 단계 일은 해당 모델의 자식이 한다. Commit만 부모.
 
 Pi 워커: `explorer` · `planner` · `tasker` · `worker` · `reviewer` · `scout` · `oracle` · `self`.
-Cursor Task 워커: `explorer` · `planner` · `tasker` · `worker` · `reviewer` · `cli-delegate` · `self`.
+Cursor · OpenCode · Claude Code 워커: `explorer` · `planner` · `tasker` · `worker` · `reviewer` · `tester` · `cli-delegate` · `self`.
 Cursor CLI 워커 (TASKS `worker:` opt-in): `agy` · `pi` · `opencode` · `codex` · `claude`.
 
 1. 사용자가 워커를 지목했거나 TASKS에 `worker:`가 있으면 [workers.md](workers.md)를 읽는다. 기본 구현 워커는 `worker`(Pi) 또는 Task `worker`(Cursor).
