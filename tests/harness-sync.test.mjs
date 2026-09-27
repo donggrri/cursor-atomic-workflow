@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { readFile, readdir, mkdtemp, rm, mkdir, writeFile, cp } from "node:fs/promises";
+import { readFile, readdir, mkdtemp, rm, mkdir, writeFile, cp, lstat, readlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
@@ -255,6 +255,54 @@ test("installer places skills, agents, and shims per harness", async () => {
     assert.match(await read(join(target, ".opencode/agents/worker.md")), /^model: composer-2\.5\[\]$/m);
     assert.doesNotMatch(await read(join(target, ".opencode/agents/planner.md")), /^model:/m);
   } finally {
+    await rm(target, { recursive: true, force: true });
+  }
+});
+
+test("--link symlinks skills to the package source on Linux only", async () => {
+  assert.equal(parseInstallArgs(["--link"]).link, true);
+  await assert.rejects(
+    install({ root: ".", target: tmpdir(), link: true, platform: "win32" }),
+    /Linux에서만/
+  );
+
+  const root = await mkdtemp(join(tmpdir(), "harness-link-src-"));
+  const target = await mkdtemp(join(tmpdir(), "harness-link-dst-"));
+  try {
+    for (const dir of ["agents", "skills", ".cursor"]) await cp(dir, join(root, dir), { recursive: true });
+    const srcSkill = join(root, "skills", "matt-pocock-atomic-plan");
+    const destSkill = join(target, ".agents", "skills", "matt-pocock-atomic-plan");
+
+    const res = await install({ root, target, harnesses: ["cursor"], link: true, platform: "linux" });
+    assert.ok(res.linked.includes(destSkill));
+    assert.equal((await lstat(destSkill)).isSymbolicLink(), true);
+    assert.equal(await readlink(destSkill), srcSkill);
+    assert.equal((await lstat(join(target, ".cursor", "agents", "worker.md"))).isSymbolicLink(), false, "agents stay copied");
+
+    await writeFile(join(srcSkill, "SKILL.md"), "edited\n");
+    assert.equal(await readFile(join(destSkill, "SKILL.md"), "utf8"), "edited\n", "source edits must show through the link");
+
+    const again = await install({ root, target, harnesses: ["cursor"], link: true, platform: "linux" });
+    assert.deepEqual(again.linked, [], "existing links to the same source are kept");
+
+    await install({ root, target, harnesses: ["cursor"], force: true });
+    assert.equal((await lstat(destSkill)).isSymbolicLink(), false, "copy mode with --force replaces the link");
+    assert.equal(await readFile(join(srcSkill, "SKILL.md"), "utf8"), "edited\n", "copy mode must not write through into the source");
+
+    const blocked = await install({ root, target, harnesses: ["cursor"], link: true, platform: "linux" });
+    assert.ok(blocked.skipped.includes(destSkill), "an existing copy is kept without --force");
+    const relinked = await install({ root, target, harnesses: ["cursor"], link: true, force: true, platform: "linux" });
+    assert.ok(relinked.linked.includes(destSkill));
+
+    const linkedDoctor = await checkHarnessInstall({ cwd: target, root });
+    assert.deepEqual(linkedDoctor.linkedSkillDirs, [join(target, ".agents", "skills")]);
+    assert.deepEqual(linkedDoctor.brokenLinks, []);
+
+    await rm(join(root, "skills", "tdd"), { recursive: true });
+    const broken = await checkHarnessInstall({ cwd: target, root });
+    assert.deepEqual(broken.brokenLinks, [join(target, ".agents", "skills", "tdd")]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
     await rm(target, { recursive: true, force: true });
   }
 });

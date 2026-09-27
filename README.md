@@ -233,6 +233,20 @@ Existing files are kept unless you pass `--force`. `--skills-dir` overrides the 
 node scripts/install.mjs --harness cursor --target /path/to/project --set-model worker=composer-2.5[]
 ```
 
+#### Symlinked skills (`--link`, Linux only)
+
+When you edit this repository's skills while using them in a project, `--link` saves reinstalling after every edit. Each installed skill becomes a symlink to `skills/<skill>` in this repository, so edits show up immediately. Agent files and OpenCode command shims are still copied, because each project may pin its own `model`.
+
+```bash
+node scripts/install.mjs --harness cursor --target /path/to/project --link
+node scripts/install.mjs --harness cursor --target . --link   # use the workflow inside this repository (.agents/ is gitignored)
+```
+
+- Only Linux is supported; on other platforms the installer stops with an error. Install without `--link` there.
+- The links point at this repository's absolute path. If you move or delete the repository, the links break; `doctor` lists broken links. Remove them and reinstall with `--link --force`.
+- After editing `agents/*.md`, run `node scripts/sync-harness.mjs` and reinstall with `--force` (agent files are copies).
+- An existing copied install is kept unless you pass `--force`. Running without `--link` and with `--force` replaces the links with copies and never writes into this repository.
+
 If the project still has an older install's `.cursor/commands/matt-pocock-atomic-*.md`, delete those files: the command skills now provide the same slash commands, and keeping both shows each command twice. The installer and `doctor` list them.
 
 ### Maintaining this package

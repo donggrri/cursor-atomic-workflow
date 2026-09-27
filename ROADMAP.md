@@ -106,7 +106,7 @@ argument-hint: "[intent | 계획만]"
 - [x] `prompts/*.md` 12개 본문을 `skills/matt-pocock-atomic-<cmd>/SKILL.md`로 옮기고 하네스 중립 문구로 바꿨다. frontmatter는 `name`, `description`(끝에 "사용자가 직접 호출할 때만 쓴다."), `disable-model-invocation: true`, `metadata.argument-hint`.
 - [x] ~~에이전트 본문을 `references/roles/<역할>.md`로 옮긴다.~~ 하지 않기로 했다(위 「설계에서 바꾼 점」).
 - [x] `scripts/sync-cursor.mjs`를 `scripts/sync-harness.mjs`로 교체했다. 치환 규칙 `PI_TO_CURSOR_PHRASES`는 없앴다. 원본이 사라진 생성물은 쓰기 모드에서 지우고 `--check`에서 보고한다.
-- [x] `scripts/install-cursor.mjs`를 `scripts/install.mjs --harness cursor,opencode,claude,codex`로 일반화했다. Claude Code는 `.claude/skills`에 복사한다. `--link`(심볼릭 링크)는 넣지 않았다.
+- [x] `scripts/install-cursor.mjs`를 `scripts/install.mjs --harness cursor,opencode,claude,codex`로 일반화했다. Claude Code는 `.claude/skills`에 복사한다. 이후 `--link`(스킬 심볼릭 링크, Linux 전용)를 추가했다.
 - [x] `doctor.mjs` 3번 섹션을 하네스 전체 진단으로 바꾸고, 레거시 `.cursor/commands/matt-pocock-atomic-*.md` 잔존 경고를 추가했다.
 - [x] 테스트 `tests/harness-sync.test.mjs`: 커맨드 스킬의 `disable-model-invocation`·description 가드·Pi 전용 문구 부재, shim이 스킬만 가리키는지, 생성물 일치와 옛 생성물 삭제, 하네스별 설치, doctor 진단.
 - [x] README 두 언어의 설치·유지보수 섹션을 새 구조로 갱신했다.

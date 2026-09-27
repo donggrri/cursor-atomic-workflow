@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFile, writeFile, readdir, stat, copyFile } from "node:fs/promises";
+import { readFile, writeFile, readdir, stat, lstat, copyFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { homedir } from "node:os";
@@ -58,9 +58,23 @@ export async function checkHarnessInstall(options = {}) {
   const agentNames = await listAgents(root);
   const commandNames = await listCommandSkills(root);
 
-  const skillDirs = [...new Set([...Object.values(HARNESSES).map((h) => h.skillsDir), ".cursor/skills"])]
-    .map((d) => join(cwd, d))
-    .filter((d) => existsSync(join(d, WORKFLOW_SKILL, "SKILL.md")));
+  const candidateDirs = [...new Set([...Object.values(HARNESSES).map((h) => h.skillsDir), ".cursor/skills"])]
+    .map((d) => join(cwd, d));
+  const skillDirs = candidateDirs.filter((d) => existsSync(join(d, WORKFLOW_SKILL, "SKILL.md")));
+
+  // --link 설치: 링크된 스킬과, 원본 저장소가 옮겨지거나 지워져 끊긴 링크
+  const linkedSkillDirs = [];
+  const brokenLinks = [];
+  for (const d of candidateDirs) {
+    if (!existsSync(d)) continue;
+    for (const entry of await readdir(d).catch(() => [])) {
+      const path = join(d, entry);
+      const st = await lstat(path).catch(() => null);
+      if (!st?.isSymbolicLink()) continue;
+      if (!existsSync(path)) brokenLinks.push(path);
+      else if (entry === WORKFLOW_SKILL) linkedSkillDirs.push(d);
+    }
+  }
   const commandSkills = [];
   for (const d of skillDirs) {
     for (const name of commandNames) {
@@ -83,6 +97,8 @@ export async function checkHarnessInstall(options = {}) {
     commandSkillsExpected: commandNames.length,
     agentsExpected: agentNames.length,
     harnesses,
+    linkedSkillDirs,
+    brokenLinks: brokenLinks.sort(),
     legacyCursorCommands: await findLegacyCursorCommands(cwd)
   };
 }
@@ -446,6 +462,9 @@ if (process.argv[1] && process.argv[1].endsWith("doctor.mjs")) {
     if (hi) {
       if (hi.skillsInstalled) {
         console.log(`  ✓ 스킬 설치: ${hi.skillDirs.join(", ")} (커맨드 스킬 ${hi.commandSkills.length}/${hi.commandSkillsExpected})`);
+        if (hi.linkedSkillDirs.length) {
+          console.log(`    심볼릭 링크 설치(--link): ${hi.linkedSkillDirs.join(", ")}. 원본 수정이 바로 반영됩니다.`);
+        }
       } else {
         console.log("  - 현재 프로젝트에 설치된 스킬 없음 (.agents/skills 또는 .claude/skills).");
       }
@@ -458,6 +477,11 @@ if (process.argv[1] && process.argv[1].endsWith("doctor.mjs")) {
           parts.push(`커맨드 shim ${entry.commands.found.length}/${hi.commandSkillsExpected}`);
         }
         if (parts.length) console.log(`  · ${name}: ${parts.join(", ")}`);
+      }
+      if (hi.brokenLinks.length) {
+        console.log(`  ✗ 끊긴 스킬 링크 ${hi.brokenLinks.length}개 (원본 저장소를 옮기거나 지웠습니다). 지우고 다시 설치하세요:`);
+        for (const f of hi.brokenLinks) console.log(`    rm ${f}`);
+        console.log("    -> 'node scripts/install.mjs --harness <하네스> --target <프로젝트> --link --force'");
       }
       if (hi.legacyCursorCommands.length) {
         console.log(`  ⚠ 레거시 .cursor/commands/ 파일 ${hi.legacyCursorCommands.length}개가 커맨드 스킬과 슬래시 메뉴에서 겹칩니다. 지우세요:`);
