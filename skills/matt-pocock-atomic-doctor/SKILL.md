@@ -20,6 +20,6 @@ metadata:
 3. 진단 결과 요약:
    - 전역 스킬 디렉터리(`~/.agents/skills/`)와의 충돌 여부 및 패키지 필터 적용 상태
    - 스킬 frontmatter(`SKILL.md`) YAML 문법 에러(unquoted colon 등) 유무
-   - 하네스 생성 파일 드리프트와 설치 상태, 레거시 `.cursor/commands/` 잔존 여부
+   - 하네스 생성 파일 드리프트와 설치 상태, `--link` 설치 여부와 끊긴 스킬 링크, 레거시 `.cursor/commands/` 잔존 여부
    - 적용된 자동 교정 내역
 4. 한국어로 친절하고 명확하게 진단 및 교정 결과를 보고한다.

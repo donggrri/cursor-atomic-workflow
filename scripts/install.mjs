@@ -3,7 +3,7 @@
 //
 //   node scripts/install.mjs --harness cursor,opencode --target <프로젝트> [--force]
 //                            [--set-model worker=composer-2.5] [--skills-dir <경로>]
-//                            [--no-skills] [--no-agents] [--no-commands]
+//                            [--no-skills] [--no-agents] [--no-commands] [--link]
 //
 // 하네스별 복사 내용 (스킬은 커맨드 스킬 포함 skills/* 전체):
 //   cursor    skills -> .agents/skills,  .cursor/agents
@@ -12,7 +12,9 @@
 //   codex     skills -> .agents/skills
 //
 // Pi는 `pi install`로 패키지를 설치한다. 이미 있으면 건너뛰고 --force 일 때만 덮어쓴다.
-import { readFile, writeFile, mkdir, readdir, stat, cp } from "node:fs/promises";
+// --link (Linux 전용): 스킬을 복사하지 않고 이 저장소 skills/<스킬> 로 심볼릭 링크한다.
+//   원본 수정이 바로 반영된다. 에이전트·커맨드 shim은 프로젝트별 model 을 위해 계속 복사한다.
+import { readFile, writeFile, mkdir, readdir, stat, lstat, readlink, symlink, rm, cp } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,6 +29,7 @@ export const HARNESSES = {
 };
 
 export const LEGACY_CURSOR_COMMANDS_DIR = ".cursor/commands";
+export const LINK_PLATFORMS = ["linux"];
 
 export function parseInstallArgs(args) {
   const opts = {
@@ -34,6 +37,7 @@ export function parseInstallArgs(args) {
     target: process.cwd(),
     skillsDir: null,
     force: false,
+    link: false,
     setModel: {},
     components: { skills: true, agents: true, commands: true }
   };
@@ -49,6 +53,7 @@ export function parseInstallArgs(args) {
     } else if (a === "--target" && args[i + 1]) opts.target = resolve(args[++i]);
     else if (a === "--skills-dir" && args[i + 1]) opts.skillsDir = args[++i];
     else if (a === "--force") opts.force = true;
+    else if (a === "--link") opts.link = true;
     else if (a === "--no-skills") opts.components.skills = false;
     else if (a === "--no-agents") opts.components.agents = false;
     else if (a === "--no-commands") opts.components.commands = false;
@@ -81,21 +86,33 @@ export async function findLegacyCursorCommands(target) {
     .map((f) => join(target, LEGACY_CURSOR_COMMANDS_DIR, f));
 }
 
-async function installSkills(root, target, skillsDir, force, record) {
-  const srcSkills = join(root, "skills");
+async function installSkills(root, target, skillsDir, force, link, record) {
+  const srcSkills = resolve(root, "skills");
   for (const entry of (await readdir(srcSkills)).sort()) {
     const src = join(srcSkills, entry);
     const st = await stat(src).catch(() => null);
     if (!st || !st.isDirectory()) continue;
     const dest = join(target, skillsDir, entry);
-    const existed = existsSync(dest);
-    if (existed && !force) {
-      record.skipped.push(dest + "/");
+    const current = await lstat(dest).catch(() => null);
+
+    if (link && current?.isSymbolicLink() && (await readlink(dest)) === src) {
+      record.skipped.push(dest);
       continue;
     }
+    if (current && !force) {
+      record.skipped.push(link ? dest : dest + "/");
+      continue;
+    }
+    // 링크를 남긴 채 복사하면 링크를 따라가 원본 저장소를 덮어쓰므로 먼저 지운다.
+    if (current) await rm(dest, { recursive: true, force: true });
     await mkdir(dirname(dest), { recursive: true });
-    await cp(src, dest, { recursive: true, force });
-    record[existed ? "overwritten" : "copied"].push(dest + "/");
+    if (link) {
+      await symlink(src, dest, "dir");
+      record.linked.push(dest);
+    } else {
+      await cp(src, dest, { recursive: true });
+      record[current ? "overwritten" : "copied"].push(dest + "/");
+    }
   }
 }
 
@@ -126,9 +143,14 @@ export async function install(options = {}) {
   const target = resolve(options.target || process.cwd());
   const harnesses = options.harnesses || ["cursor"];
   const force = !!options.force;
+  const link = !!options.link;
+  const platform = options.platform || process.platform;
+  if (link && !LINK_PLATFORMS.includes(platform)) {
+    throw new Error(`--link 는 Linux에서만 지원합니다 (현재: ${platform}). --link 없이 복사로 설치하세요.`);
+  }
   const setModel = options.setModel || {};
   const components = options.components || { skills: true, agents: true, commands: true };
-  const record = { copied: [], overwritten: [], skipped: [] };
+  const record = { copied: [], overwritten: [], linked: [], skipped: [] };
 
   const skillsDirs = new Set();
   for (const h of harnesses) {
@@ -138,7 +160,7 @@ export async function install(options = {}) {
   }
 
   if (components.skills) {
-    for (const dir of skillsDirs) await installSkills(root, target, dir, force, record);
+    for (const dir of skillsDirs) await installSkills(root, target, dir, force, link, record);
   }
   for (const h of harnesses) {
     const spec = HARNESSES[h];
@@ -151,7 +173,7 @@ export async function install(options = {}) {
   }
 
   const legacy = harnesses.includes("cursor") ? await findLegacyCursorCommands(target) : [];
-  return { target, harnesses, skillsDirs: [...skillsDirs], legacy, ...record };
+  return { target, harnesses, link, skillsDirs: [...skillsDirs], legacy, ...record };
 }
 
 if (process.argv[1] && process.argv[1].endsWith("install.mjs")) {
@@ -165,8 +187,9 @@ if (process.argv[1] && process.argv[1].endsWith("install.mjs")) {
   install({ ...opts, root: resolve(here, "..") })
     .then((res) => {
       console.log(`설치 대상: ${res.target} (하네스: ${res.harnesses.join(", ")})`);
-      console.log(`  스킬 위치: ${res.skillsDirs.join(", ")}`);
+      console.log(`  스킬 위치: ${res.skillsDirs.join(", ")}${res.link ? " (심볼릭 링크)" : ""}`);
       for (const f of res.copied) console.log(`  + ${f}`);
+      for (const f of res.linked) console.log(`  → ${f}`);
       for (const f of res.overwritten) console.log(`  ~ ${f}`);
       for (const f of res.skipped) console.log(`  = 유지(있음): ${f}`);
       if (res.legacy.length) {
@@ -175,6 +198,9 @@ if (process.argv[1] && process.argv[1].endsWith("install.mjs")) {
       }
       console.log("\n설치 완료. 커맨드: Cursor·Claude Code `/matt-pocock-atomic-plan`, OpenCode `/matt-pocock-atomic-plan`, Codex `$matt-pocock-atomic-plan`.");
       console.log("단계별 모델은 각 하네스 에이전트 파일의 `model`로 지정합니다.");
+      if (res.link) {
+        console.log("스킬은 원본을 링크하므로 원본 수정이 바로 반영됩니다. 에이전트 파일은 복사본이라 원본 agents/ 를 고쳤다면 sync 후 --force 로 다시 설치하세요.");
+      }
     })
     .catch((err) => {
       console.error("설치 실패:", err.message);

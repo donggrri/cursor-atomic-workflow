@@ -233,6 +233,20 @@ node scripts/install.mjs --harness opencode,claude --target /path/to/project
 node scripts/install.mjs --harness cursor --target /path/to/project --set-model worker=composer-2.5[]
 ```
 
+#### 스킬 심볼릭 링크 설치 (`--link`, Linux 전용)
+
+이 저장소의 스킬을 고쳐 가며 프로젝트에서 쓸 때는 `--link`를 쓰면 매번 다시 설치하지 않아도 된다. 설치되는 스킬이 이 저장소 `skills/<스킬>`을 가리키는 심볼릭 링크가 되어, 원본 수정이 바로 반영된다. 에이전트 파일과 OpenCode 커맨드 shim은 프로젝트마다 `model`을 다르게 둘 수 있도록 계속 복사한다.
+
+```bash
+node scripts/install.mjs --harness cursor --target /path/to/project --link
+node scripts/install.mjs --harness cursor --target . --link   # 이 저장소 안에서 워크플로 사용 (.agents/ 는 gitignore)
+```
+
+- Linux만 지원한다. 다른 OS에서는 오류로 멈추므로 `--link` 없이 설치한다.
+- 링크는 이 저장소의 절대 경로를 가리킨다. 저장소를 옮기거나 지우면 링크가 끊기고, `doctor`가 끊긴 링크를 알려 준다. 지운 뒤 `--link --force`로 다시 설치한다.
+- `agents/*.md`를 고쳤다면 `node scripts/sync-harness.mjs` 후 `--force`로 다시 설치한다(에이전트 파일은 복사본이다).
+- 이미 복사로 설치된 스킬은 `--force` 없이는 유지된다. `--link` 없이 `--force`로 설치하면 링크를 복사본으로 바꾸며, 이 저장소에는 쓰지 않는다.
+
 예전 설치가 남긴 `.cursor/commands/matt-pocock-atomic-*.md`가 있으면 지운다. 이제 커맨드 스킬이 같은 슬래시 커맨드를 제공하므로, 둘 다 두면 커맨드가 두 번씩 보인다. 설치 스크립트와 `doctor`가 해당 파일을 알려 준다.
 
 ### 패키지 유지보수

@@ -1,6 +1,6 @@
 node_modules/
 
-# Cursor dogfood: node scripts/install-cursor.mjs --target . 로 설치한 스킬은 로컬 전용
+# dogfood: node scripts/install.mjs --harness cursor --target . [--link] 로 설치한 스킬은 로컬 전용
 /.agents/
 
 # matt-pocock-atomic-workflow 로컬 산출물 (커밋하지 않는다)
