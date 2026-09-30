@@ -5,11 +5,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/donggrri/matt-pocock-atomic-workflow.git"
+    "url": "git+https://github.com/donggrri/cursor-atomic-workflow.git"
   },
-  "homepage": "https://github.com/donggrri/matt-pocock-atomic-workflow#readme",
+  "homepage": "https://github.com/donggrri/cursor-atomic-workflow#readme",
   "bugs": {
-    "url": "https://github.com/donggrri/matt-pocock-atomic-workflow/issues"
+    "url": "https://github.com/donggrri/cursor-atomic-workflow/issues"
   },
   "keywords": [
     "cursor",

@@ -33,7 +33,7 @@ pi install npm:matt-pocock-atomic-workflow
 Git에서 설치 (대안):
 
 ```bash
-pi install git:github.com/donggrri/matt-pocock-atomic-workflow
+pi install git:github.com/donggrri/cursor-atomic-workflow
 ```
 
 아래는 필수가 아니다. 실제로 쓰는 것만 설치한다:

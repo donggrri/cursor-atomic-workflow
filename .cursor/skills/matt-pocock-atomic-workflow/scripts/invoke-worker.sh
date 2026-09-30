@@ -59,7 +59,7 @@ resolve_pi_pkg() {
     echo "$MATT_POCOCK_PI_PKG"
     return 0
   fi
-  local default="$HOME/.pi/agent/git/github.com/donggrri/matt-pocock-atomic-workflow"
+  local default="$HOME/.pi/agent/git/github.com/donggrri/cursor-atomic-workflow"
   if [[ -f "$default/agents/worker.md" ]]; then
     echo "$default"
     return 0

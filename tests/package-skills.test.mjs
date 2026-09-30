@@ -117,10 +117,10 @@ test("package.json meets public publish metadata contract", async () => {
   assert.equal(pkg.license, "MIT");
   assert.deepEqual(pkg.repository, {
     type: "git",
-    url: "git+https://github.com/donggrri/matt-pocock-atomic-workflow.git"
+    url: "git+https://github.com/donggrri/cursor-atomic-workflow.git"
   });
-  assert.equal(pkg.homepage, "https://github.com/donggrri/matt-pocock-atomic-workflow#readme");
-  assert.equal(pkg.bugs?.url, "https://github.com/donggrri/matt-pocock-atomic-workflow/issues");
+  assert.equal(pkg.homepage, "https://github.com/donggrri/cursor-atomic-workflow#readme");
+  assert.equal(pkg.bugs?.url, "https://github.com/donggrri/cursor-atomic-workflow/issues");
   for (const keyword of expectedKeywords) {
     assert.ok(pkg.keywords?.includes(keyword), `keywords must include ${keyword}`);
   }
