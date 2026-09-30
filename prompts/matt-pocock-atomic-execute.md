@@ -1,8 +1,0 @@
----
-# 생성 파일 - skills/matt-pocock-atomic-execute/SKILL.md 에서 scripts/sync-harness.mjs 로 만든다. 직접 고치지 않는다.
-description: "matt-pocock-atomic-workflow Phase 3. TASKS 항목을 worker로 구현한 뒤 기본은 review 자동."
-argument-hint: "[agent|agy|self|item-id|구현만]"
----
-`matt-pocock-atomic-workflow` 스킬과 같은 폴더에 있는 `matt-pocock-atomic-execute/SKILL.md` 커맨드 스킬을 읽고 그대로 따른다. 이 세션은 Pi다.
-
-입력: ${@:-(없음)}

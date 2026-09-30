@@ -36,3 +36,10 @@ Thumbs.db
 
 # 임시 패치 파일
 *.patch
+
+# SDK 스파이크 (제품에 넣지 않는다)
+spikes/
+
+# 파이프라인 런 로그
+output.log
+output.log.done.json

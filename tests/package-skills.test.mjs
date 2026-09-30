@@ -6,6 +6,25 @@ import { tmpdir } from "node:os";
 import test from "node:test";
 import { runDone } from "../scripts/run-done.mjs";
 
+const SKILLS = ".cursor/skills";
+const skillFile = (name) => join(SKILLS, name, "SKILL.md");
+
+const COMMAND_SKILLS = [
+  "matt-pocock-atomic-config",
+  "matt-pocock-atomic-delegate",
+  "matt-pocock-atomic-doctor",
+  "matt-pocock-atomic-execute",
+  "matt-pocock-atomic-explore",
+  "matt-pocock-atomic-models",
+  "matt-pocock-atomic-plan",
+  "matt-pocock-atomic-review",
+  "matt-pocock-atomic-run",
+  "matt-pocock-atomic-settings",
+  "matt-pocock-atomic-status",
+  "matt-pocock-atomic-task",
+  "matt-pocock-atomic-wrapup",
+];
+
 const requiredSkills = [
   "codebase-design",
   "domain-modeling",
@@ -60,33 +79,29 @@ function isAllowedOldAgentMention(line) {
     || /기존 설정에 `g-/.test(line);
 }
 
-test("package.json includes skills directory", async () => {
-  const pkgStr = await readFile("package.json", "utf8");
-  const pkg = JSON.parse(pkgStr);
-  assert.ok(pkg.pi && pkg.pi.skills && pkg.pi.skills.includes("./skills"), "package.json must declare pi.skills array containing './skills'");
-  assert.deepEqual(pkg.pi.subagents, { agents: ["./agents"] });
+test("package.json includes .cursor directory", async () => {
+  const pkg = JSON.parse(await readFile("package.json", "utf8"));
+  assert.equal(pkg.name, "cursor-atomic-workflow");
+  assert.ok(pkg.files.includes(".cursor/"), "package.json files must ship .cursor/");
+  assert.equal(pkg.engines?.node, ">=22.13");
+  assert.ok(pkg.optionalDependencies?.["@cursor/sdk"]);
+  assert.equal(pkg.pi, undefined, "Cursor package must not declare pi manifest");
 });
 
 test("package.json meets public publish metadata contract", async () => {
   const pkgStr = await readFile("package.json", "utf8");
   const pkg = JSON.parse(pkgStr);
   const expectedKeywords = [
-    "pi-package",
-    "pi",
-    "pi-coding-agent",
+    "cursor",
+    "cursor-sdk",
     "workflow",
     "atomic-workflow",
     "skills",
     "agents"
   ];
   const expectedFiles = [
-    "agents/",
-    "prompts/",
-    "skills/",
-    "scripts/",
     ".cursor/",
-    ".opencode/",
-    ".claude/",
+    "scripts/",
     "settings.example.json",
     "README.md",
     "README.kr.md",
@@ -94,7 +109,7 @@ test("package.json meets public publish metadata contract", async () => {
     "LICENSE"
   ];
 
-  assert.equal(pkg.name, "matt-pocock-atomic-workflow");
+  assert.equal(pkg.name, "cursor-atomic-workflow");
   assert.equal(pkg.version, "0.1.0");
   assert.ok(!Object.hasOwn(pkg, "private"), "package.json must not declare private");
   assert.equal(typeof pkg.description, "string");
@@ -110,9 +125,7 @@ test("package.json meets public publish metadata contract", async () => {
     assert.ok(pkg.keywords?.includes(keyword), `keywords must include ${keyword}`);
   }
   assert.deepEqual(pkg.files, expectedFiles);
-  assert.deepEqual(pkg.pi?.skills, ["./skills"]);
-  assert.deepEqual(pkg.pi?.prompts, ["./prompts"]);
-  assert.deepEqual(pkg.pi?.subagents, { agents: ["./agents"] });
+  assert.equal(pkg.optionalDependencies?.["@cursor/sdk"], "^1.0.32");
 
   const licenseStats = await stat("LICENSE").catch(() => null);
   assert.ok(licenseStats && licenseStats.isFile(), "root LICENSE file must exist");
@@ -120,13 +133,13 @@ test("package.json meets public publish metadata contract", async () => {
 
 test("bundled skills are present", async () => {
   for (const skill of requiredSkills) {
-    const stats = await stat(join("skills", skill, "SKILL.md")).catch(() => null);
-    assert.ok(stats && stats.isFile(), `skill ${skill} must exist in skills directory`);
+    const stats = await stat(skillFile(skill)).catch(() => null);
+    assert.ok(stats && stats.isFile(), `skill ${skill} must exist under ${SKILLS}`);
   }
 });
 
 test("planning preflight is defined in the plan command skill", async () => {
-  const plan = await readFile("skills/matt-pocock-atomic-plan/SKILL.md", "utf8");
+  const plan = await readFile(skillFile("matt-pocock-atomic-plan"), "utf8");
   assert.match(plan, /grilling/, "matt-pocock-atomic-plan.md must reference grilling");
   assert.match(plan, /wayfinder/, "matt-pocock-atomic-plan.md must reference wayfinder");
   assert.doesNotMatch(plan, /way-finder/, "matt-pocock-atomic-plan.md must not reference old way-finder typo");
@@ -134,12 +147,12 @@ test("planning preflight is defined in the plan command skill", async () => {
 
 test("artifact writers use slug folders under .docs and harness docs", async () => {
   const files = [
-    "skills/matt-pocock-atomic-workflow/SKILL.md",
-    "agents/explorer.md",
-    "agents/planner.md",
-    "skills/matt-pocock-atomic-explore/SKILL.md",
-    "skills/matt-pocock-atomic-plan/SKILL.md",
-    "skills/matt-pocock-atomic-status/SKILL.md"
+    skillFile("matt-pocock-atomic-workflow"),
+    join(".cursor", "agents", "explorer.md"),
+    join(".cursor", "agents", "planner.md"),
+    skillFile("matt-pocock-atomic-explore"),
+    skillFile("matt-pocock-atomic-plan"),
+    skillFile("matt-pocock-atomic-status"),
   ];
   for (const file of files) {
     const body = await readFile(file, "utf8");
@@ -159,43 +172,41 @@ test("artifact writers use slug folders under .docs and harness docs", async () 
 });
 
 test("workflow agents are registered without g- prefix", async () => {
-  const files = (await readdir("agents")).sort();
-  assert.deepEqual(files, Object.keys(workflowAgents).map((name) => `${name}.md`).sort());
+  const { ROLES, agentFileName, getRole } = await import("../scripts/lib/roles.mjs");
+  const agentsDir = join(".cursor", "agents");
+  const files = (await readdir(agentsDir)).sort();
+  const expected = Object.keys(ROLES).map((role) => agentFileName(role)).sort();
+  assert.deepEqual(files, expected);
 
   for (const [name, skills] of Object.entries(workflowAgents)) {
-    const file = `agents/${name}.md`;
+    const file = join(agentsDir, agentFileName(name));
     const body = await readFile(file, "utf8");
     const meta = parseFrontmatter(body, file);
-    assert.equal(meta.name, name, `${file} name must match filename`);
-    assert.equal(meta.advertise, "true", `${file} must be advertised`);
-    assert.equal(meta.async, "true", `${file} must run async`);
-    assert.ok(!("model" in meta), `${file} must not pin a model in frontmatter`);
-    assert.match(meta.tools, /read/, `${file} must have tools`);
-    const listed = (meta.skills || "").split(",").map((s) => s.trim()).filter(Boolean);
+    assert.equal(meta.model, getRole(name).taskModel, `${file} model must match roles.mjs`);
+    assert.ok(meta.description, `${file} must have description`);
     for (const skill of skills) {
-      assert.ok(listed.includes(skill), `${name} must list skill ${skill}`);
+      assert.match(body, new RegExp(skill), `${name} must reference skill ${skill}`);
     }
     assert.doesNotMatch(body, /^name: g-/m, `${file} must not use a g- name`);
-    assert.doesNotMatch(meta.aliases || "", /\bg-/, `${file} aliases must not keep g- prefix`);
   }
 });
 
 test("planner contract uses correct skills", async () => {
-  const planner = await readFile("agents/planner.md", "utf8");
-  assert.match(planner, /skills:.*grilling/, "planner must use grilling");
-  assert.match(planner, /skills:.*wayfinder/, "planner must use wayfinder");
+  const planner = await readFile(join(".cursor", "agents", "planner.md"), "utf8");
+  assert.match(planner, /grilling/, "planner must use grilling");
+  assert.match(planner, /wayfinder/, "planner must use wayfinder");
   assert.doesNotMatch(planner, /grill-me/, "planner must not rely on grill-me directly");
   assert.match(planner, /brief/, "planner must require planning refinement brief");
 });
 
 test("command skills spawn the renamed agents", async () => {
   const prompts = {
-    "skills/matt-pocock-atomic-explore/SKILL.md": ["explorer"],
-    "skills/matt-pocock-atomic-plan/SKILL.md": ["planner", "tasker", "worker", "reviewer"],
-    "skills/matt-pocock-atomic-task/SKILL.md": ["tasker"],
-    "skills/matt-pocock-atomic-execute/SKILL.md": ["worker", "reviewer"],
-    "skills/matt-pocock-atomic-review/SKILL.md": ["reviewer"],
-    "skills/matt-pocock-atomic-delegate/SKILL.md": ["worker"]
+    [skillFile("matt-pocock-atomic-explore")]: ["explorer"],
+    [skillFile("matt-pocock-atomic-plan")]: ["planner", "tasker", "worker", "reviewer"],
+    [skillFile("matt-pocock-atomic-task")]: ["tasker"],
+    [skillFile("matt-pocock-atomic-execute")]: ["worker", "reviewer"],
+    [skillFile("matt-pocock-atomic-review")]: ["reviewer"],
+    [skillFile("matt-pocock-atomic-delegate")]: ["worker"],
   };
   for (const [file, agents] of Object.entries(prompts)) {
     const body = await readFile(file, "utf8");
@@ -225,28 +236,17 @@ test("documentation matches bundled behavior", async () => {
   assert.match(readme, /THIRD_PARTY_LICENSES/, "README must mention THIRD_PARTY_LICENSES");
 });
 
-test("workflow prompts use package-prefixed slash command names", async () => {
-  const prompts = (await readdir("prompts")).sort();
-  assert.deepEqual(prompts, [
-    "matt-pocock-atomic-config.md",
-    "matt-pocock-atomic-delegate.md",
-    "matt-pocock-atomic-doctor.md",
-    "matt-pocock-atomic-execute.md",
-    "matt-pocock-atomic-explore.md",
-    "matt-pocock-atomic-models.md",
-    "matt-pocock-atomic-plan.md",
-    "matt-pocock-atomic-review.md",
-    "matt-pocock-atomic-settings.md",
-    "matt-pocock-atomic-status.md",
-    "matt-pocock-atomic-task.md",
-    "matt-pocock-atomic-wrapup.md"
-  ]);
+test("command skill directories use package-prefixed slash names", async () => {
+  const dirs = (await readdir(SKILLS))
+    .filter((name) => name.startsWith("matt-pocock-atomic-") && name !== "matt-pocock-atomic-workflow")
+    .sort();
+  assert.deepEqual(dirs, COMMAND_SKILLS);
 });
 
 test("bundled skills have valid frontmatter without unquoted colon mapping errors", async () => {
   const { validateSkillFrontmatter } = await import("../scripts/doctor.mjs");
   for (const skill of requiredSkills) {
-    const file = join("skills", skill, "SKILL.md");
+    const file = skillFile(skill);
     const content = await readFile(file, "utf8");
     const result = validateSkillFrontmatter(content, file);
     assert.equal(result.valid, true, `${file} must not have YAML parse risks: ${JSON.stringify(result.issues)}`);
@@ -405,7 +405,7 @@ test("run-done extracts errorTail on command timeout", async () => {
 });
 
 test("pipeline recovery CONTEXT glossary", async () => {
-  const context = await readFile("skills/matt-pocock-atomic-workflow/CONTEXT.md", "utf8");
+  const context = await readFile(join(SKILLS, "matt-pocock-atomic-workflow", "CONTEXT.md"), "utf8");
 
   // 리뷰 재작업
   assert.match(context, /## 리뷰 재작업/, "CONTEXT.md must have section '## 리뷰 재작업'");
@@ -432,7 +432,7 @@ test("pipeline recovery CONTEXT glossary", async () => {
 });
 
 test("pipeline recovery reference bash", async () => {
-  const reference = await readFile("skills/matt-pocock-atomic-workflow/reference.md", "utf8");
+  const reference = await readFile(join(SKILLS, "matt-pocock-atomic-workflow", "reference.md"), "utf8");
 
   // Cursor / PowerShell 블록 유지 및 분리 라벨
   assert.match(reference, /Cursor.*PowerShell/i, "reference.md must separate and label Cursor/PowerShell");
@@ -454,7 +454,7 @@ test("pipeline recovery reference bash", async () => {
 });
 
 test("pipeline recovery SKILL orchestration", async () => {
-  const skill = await readFile("skills/matt-pocock-atomic-workflow/SKILL.md", "utf8");
+  const skill = await readFile(skillFile("matt-pocock-atomic-workflow"), "utf8");
 
   // 사람 게이트 불변
   assert.match(skill, /사람 게이트는.*PLAN.*Phase 1.*만|사람 게이트는 \*\*PLAN뿐\*\*이다/, "SKILL.md must state human gate is PLAN(Phase 1) only");
@@ -479,8 +479,8 @@ test("pipeline recovery SKILL orchestration", async () => {
 });
 
 test("pipeline recovery workers and testing", async () => {
-  const workers = await readFile("skills/matt-pocock-atomic-workflow/workers.md", "utf8");
-  const testing = await readFile("skills/matt-pocock-atomic-workflow/testing.md", "utf8");
+  const workers = await readFile(join(SKILLS, "matt-pocock-atomic-workflow", "workers.md"), "utf8");
+  const testing = await readFile(join(SKILLS, "matt-pocock-atomic-workflow", "testing.md"), "utf8");
 
   for (const [file, content] of [["workers.md", workers], ["testing.md", testing]]) {
     // 1회 / 한 번
@@ -497,10 +497,10 @@ test("pipeline recovery workers and testing", async () => {
 });
 
 test("pipeline recovery command skills", async () => {
-  const execute = await readFile("skills/matt-pocock-atomic-execute/SKILL.md", "utf8");
-  const review = await readFile("skills/matt-pocock-atomic-review/SKILL.md", "utf8");
-  const status = await readFile("skills/matt-pocock-atomic-status/SKILL.md", "utf8");
-  const commit = await readFile("skills/matt-pocock-atomic-wrapup/SKILL.md", "utf8");
+  const execute = await readFile(skillFile("matt-pocock-atomic-execute"), "utf8");
+  const review = await readFile(skillFile("matt-pocock-atomic-review"), "utf8");
+  const status = await readFile(skillFile("matt-pocock-atomic-status"), "utf8");
+  const commit = await readFile(skillFile("matt-pocock-atomic-wrapup"), "utf8");
 
   // execute prompt recovery policy
   assert.match(execute, /막힘 재개/, "execute.md must mention 막힘 재개");
@@ -521,17 +521,15 @@ test("pipeline recovery command skills", async () => {
 
   // status prompt recovery policy and Pi bash paths
   assert.match(status, /막힘.*\/matt-pocock-atomic-execute/, "status.md must guide to /matt-pocock-atomic-execute when blocked");
-  assert.match(status, /~\/\.pi\/agent\/matt-pocock-atomic-workflow\/docs\/<slug>\/|\$HOME\/\.pi\/agent\/matt-pocock-atomic-workflow\/docs\/<slug>\//, "status.md must guide Pi bash harness docs path");
-  assert.match(status, /~\/\.pi\/agent\/matt-pocock-atomic-workflow\/runs\//, "status.md must guide Pi bash harness runs path");
+  assert.match(status, /~\/\.matt-pocock-workflow\/runs\//, "status.md must guide global runs path");
   assert.match(status, /PowerShell|%USERPROFILE%/, "status.md must retain Cursor PowerShell block/path");
 
-  // commit prompt Pi bash evidence path and Cursor PowerShell
-  assert.match(commit, /~\/\.pi\/agent\/matt-pocock-atomic-workflow\/evidence\/|\$HOME\/\.pi\/agent\/matt-pocock-atomic-workflow\/evidence\//, "commit.md must guide Pi bash harness evidence path");
+  assert.match(commit, /~\/\.matt-pocock-workflow\/evidence\//, "commit.md must guide global evidence path");
   assert.match(commit, /PowerShell|%USERPROFILE%/, "commit.md must retain Cursor PowerShell block/path");
 });
 
 test("pipeline recovery reviewer agent", async () => {
-  const reviewer = await readFile("agents/reviewer.md", "utf8");
+  const reviewer = await readFile(join(".cursor", "agents", "matt-pocock-atomic-reviewer.md"), "utf8");
 
   // 직접 리뷰어 및 CLI 디스패치 금지
   assert.match(reviewer, /직접 리뷰어/, "reviewer.md must state package reviewer is direct reviewer");

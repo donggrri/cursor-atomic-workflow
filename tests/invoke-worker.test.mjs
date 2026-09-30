@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-const skillRoot = "skills/matt-pocock-atomic-workflow";
+const skillRoot = ".cursor/skills/matt-pocock-atomic-workflow";
 const scriptsDir = join(skillRoot, "scripts");
 
 test("invoke-worker.sh exists and is executable", async () => {

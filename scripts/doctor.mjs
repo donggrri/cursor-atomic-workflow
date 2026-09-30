@@ -19,22 +19,44 @@ export const BUNDLED_SKILLS = [
 export const WORKFLOW_SKILL = "matt-pocock-atomic-workflow";
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const SKILLS_DIR = ".cursor/skills";
+const AGENTS_DIR = ".cursor/agents";
+const BUNDLED_SCRIPTS = ["work-status.mjs", "run-done.mjs"];
+
+/** @param {string} root */
+export async function listCommandSkills(root) {
+  const dir = join(root, SKILLS_DIR);
+  if (!existsSync(dir)) return [];
+  return (await readdir(dir))
+    .filter((name) => name.startsWith("matt-pocock-atomic-") && name !== WORKFLOW_SKILL)
+    .sort();
+}
 
 /**
- * 패키지 저장소에서 커밋된 하네스 생성물이 sync-harness.mjs 결과와 일치하는지 검사한다.
+ * 패키지 저장소에서 번들 스크립트가 루트 scripts/ 와 일치하는지 검사한다.
  * 패키지 저장소가 아닌 곳(설치 프로젝트)에서는 검사하지 않는다.
  */
 export async function checkHarnessSync(options = {}) {
   const cwd = options.cwd || process.cwd();
-  if (!existsSync(join(cwd, "agents")) || !existsSync(join(cwd, "skills", WORKFLOW_SKILL, "SKILL.md"))) {
+  const bundledDir = join(cwd, SKILLS_DIR, WORKFLOW_SKILL, "scripts");
+  if (!existsSync(join(cwd, SKILLS_DIR, WORKFLOW_SKILL, "SKILL.md"))) {
     return { skipped: true, inSync: true, mismatches: [], stale: [] };
   }
-  try {
-    const { checkHarnessSync: check } = await import("./sync-harness.mjs");
-    return await check({ root: cwd });
-  } catch (err) {
-    return { inSync: false, mismatches: [], stale: [], error: err.message };
+  const mismatches = [];
+  for (const script of BUNDLED_SCRIPTS) {
+    const rootScript = join(cwd, "scripts", script);
+    const bundledScript = join(bundledDir, script);
+    if (!existsSync(bundledScript)) {
+      mismatches.push(`missing .cursor/skills/${WORKFLOW_SKILL}/scripts/${script}`);
+      continue;
+    }
+    const [rootText, bundledText] = await Promise.all([
+      readFile(rootScript, "utf8"),
+      readFile(bundledScript, "utf8"),
+    ]);
+    if (rootText !== bundledText) mismatches.push(script);
   }
+  return { skipped: false, inSync: mismatches.length === 0, mismatches, stale: [] };
 }
 
 async function countMarkdown(dir, names) {
@@ -53,37 +75,35 @@ async function countMarkdown(dir, names) {
 export async function checkHarnessInstall(options = {}) {
   const cwd = options.cwd || process.cwd();
   const root = options.root || PACKAGE_ROOT;
-  const { listAgents, listCommandSkills } = await import("./sync-harness.mjs");
-  const { HARNESSES, findLegacyCursorCommands } = await import("./install.mjs");
-  const agentNames = await listAgents(root);
+  const { findLegacyCursorCommands } = await import("./install.mjs");
+  const { agentFileName, roleNames } = await import("./lib/roles.mjs");
   const commandNames = await listCommandSkills(root);
-
-  const skillDirs = [...new Set([...Object.values(HARNESSES).map((h) => h.skillsDir), ".cursor/skills"])]
-    .map((d) => join(cwd, d))
-    .filter((d) => existsSync(join(d, WORKFLOW_SKILL, "SKILL.md")));
+  const skillsRoot = join(cwd, SKILLS_DIR);
+  const skillsInstalled = existsSync(join(skillsRoot, WORKFLOW_SKILL, "SKILL.md"));
   const commandSkills = [];
-  for (const d of skillDirs) {
+  if (skillsInstalled) {
     for (const name of commandNames) {
-      if (existsSync(join(d, name, "SKILL.md")) && !commandSkills.includes(name)) commandSkills.push(name);
+      if (existsSync(join(skillsRoot, name, "SKILL.md"))) commandSkills.push(name);
     }
   }
-
-  const harnesses = {};
-  for (const [name, spec] of Object.entries(HARNESSES)) {
-    const entry = {};
-    if (spec.agentsDir) entry.agents = await countMarkdown(join(cwd, spec.agentsDir), agentNames);
-    if (spec.commandsDir) entry.commands = await countMarkdown(join(cwd, spec.commandsDir), commandNames);
-    harnesses[name] = entry;
-  }
+  const expectedAgentStems = roleNames().map((role) => agentFileName(role).replace(/\.md$/, ""));
+  const agents = await countMarkdown(join(cwd, AGENTS_DIR), expectedAgentStems);
 
   return {
-    skillsInstalled: skillDirs.length > 0,
-    skillDirs,
+    skillsInstalled,
+    skillDirs: skillsInstalled ? [skillsRoot] : [],
     commandSkills: commandSkills.sort(),
     commandSkillsExpected: commandNames.length,
-    agentsExpected: agentNames.length,
-    harnesses,
-    legacyCursorCommands: await findLegacyCursorCommands(cwd)
+    agentsExpected: expectedAgentStems.length,
+    harnesses: {
+      cursor: {
+        agents: {
+          found: agents.found,
+          missing: agents.missing,
+        },
+      },
+    },
+    legacyCursorCommands: await findLegacyCursorCommands(cwd),
   };
 }
 
@@ -328,9 +348,9 @@ export async function runDoctor(options = {}) {
 
   // 2. YAML frontmatter 검사 대상 수집
   const targetDirs = options.skillsDirs || [
-    resolve("skills"),
-    join(home, ".agents", "skills"),
-    join(cwd, ".agents", "skills")
+    resolve(SKILLS_DIR),
+    join(cwd, SKILLS_DIR),
+    join(home, ".cursor", "skills"),
   ];
 
   const skillFiles = new Set();
@@ -364,16 +384,6 @@ export async function runDoctor(options = {}) {
   // 3. 하네스 생성물 동기화 + 설치 상태 점검
   results.harnessSync = await checkHarnessSync({ cwd });
   results.harnessInstall = await checkHarnessInstall({ cwd });
-  if (results.harnessSync && !results.harnessSync.inSync && doFix && !results.harnessSync.error) {
-    try {
-      const { generateHarnessFiles } = await import("./sync-harness.mjs");
-      await generateHarnessFiles({ root: cwd, write: true });
-      results.fixesApplied.push("Regenerated harness files via sync-harness.mjs");
-      results.harnessSync = await checkHarnessSync({ cwd });
-    } catch {
-      // 재생성 실패 시 진단 결과만 유지
-    }
-  }
 
   return results;
 }
@@ -427,44 +437,33 @@ if (process.argv[1] && process.argv[1].endsWith("doctor.mjs")) {
       }
     }
 
-    console.log("\n3. 하네스(Pi·Cursor·OpenCode·Claude Code·Codex) 진단:");
+    console.log("\n3. Cursor 설치·번들 스크립트 진단:");
     const hs = res.harnessSync;
-    if (hs && hs.error) {
-      console.log(`  ⚠ 하네스 동기화 점검 실패: ${hs.error}`);
-    } else if (hs && hs.skipped) {
-      console.log("  - 패키지 저장소가 아니므로 생성물 동기화 검사는 건너뜁니다.");
+    if (hs && hs.skipped) {
+      console.log("  - 패키지 저장소가 아니므로 번들 스크립트 동기화 검사는 건너뜁니다.");
     } else if (hs && hs.inSync) {
-      console.log("  ✓ 동기화 정상: prompts/·.opencode/·.cursor/agents·.claude/agents 가 원본과 일치합니다.");
+      console.log("  ✓ 번들 스크립트가 루트 scripts/ 와 일치합니다.");
     } else if (hs) {
       for (const m of hs.mismatches) console.log(`  ⚠ 원본과 다름: ${m}`);
-      for (const m of hs.stale) console.log(`  ⚠ 원본 없는 옛 생성물: ${m}`);
-      if (!isFix) {
-        console.log("    -> 'node scripts/doctor.mjs --fix' 또는 'node scripts/sync-harness.mjs' 로 재생성하세요.");
-      }
     }
     const hi = res.harnessInstall;
     if (hi) {
       if (hi.skillsInstalled) {
         console.log(`  ✓ 스킬 설치: ${hi.skillDirs.join(", ")} (커맨드 스킬 ${hi.commandSkills.length}/${hi.commandSkillsExpected})`);
       } else {
-        console.log("  - 현재 프로젝트에 설치된 스킬 없음 (.agents/skills 또는 .claude/skills).");
+        console.log("  - 현재 프로젝트에 `.cursor/skills/matt-pocock-atomic-workflow` 없음.");
       }
-      for (const [name, entry] of Object.entries(hi.harnesses)) {
-        const parts = [];
-        if (entry.agents && entry.agents.found.length) {
-          parts.push(`에이전트 ${entry.agents.found.length}/${hi.agentsExpected}`);
-        }
-        if (entry.commands && entry.commands.found.length) {
-          parts.push(`커맨드 shim ${entry.commands.found.length}/${hi.commandSkillsExpected}`);
-        }
-        if (parts.length) console.log(`  · ${name}: ${parts.join(", ")}`);
+      const cursorAgents = hi.harnesses?.cursor?.agents;
+      if (cursorAgents && (cursorAgents.found.length || cursorAgents.missing.length)) {
+        console.log(`  · cursor 에이전트 ${cursorAgents.found.length}/${hi.agentsExpected}`);
+        for (const m of cursorAgents.missing) console.log(`    ✗ missing: ${m}`);
       }
       if (hi.legacyCursorCommands.length) {
         console.log(`  ⚠ 레거시 .cursor/commands/ 파일 ${hi.legacyCursorCommands.length}개가 커맨드 스킬과 슬래시 메뉴에서 겹칩니다. 지우세요:`);
         for (const f of hi.legacyCursorCommands) console.log(`    rm ${f}`);
       }
       if (!hi.skillsInstalled && !isFix) {
-        console.log("    -> 'node scripts/install.mjs --harness <cursor|opencode|claude|codex> --target <프로젝트>' 로 설치하세요.");
+        console.log("    -> 'node scripts/install.mjs --target <프로젝트>' 로 설치하세요.");
       }
     }
 

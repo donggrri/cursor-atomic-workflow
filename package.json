@@ -1,7 +1,7 @@
 {
-  "name": "matt-pocock-atomic-workflow",
+  "name": "cursor-atomic-workflow",
   "version": "0.1.0",
-  "description": "Atomic explore → plan → task → execute → review → commit workflow for Pi, Cursor, OpenCode, Claude Code, and Codex.",
+  "description": "Atomic explore → plan → task → execute → review workflow for Cursor (SDK runner + Task subagents).",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -12,39 +12,31 @@
     "url": "https://github.com/donggrri/matt-pocock-atomic-workflow/issues"
   },
   "keywords": [
-    "pi-package",
-    "pi",
-    "pi-coding-agent",
+    "cursor",
+    "cursor-sdk",
     "workflow",
     "atomic-workflow",
     "skills",
     "agents"
   ],
   "files": [
-    "agents/",
-    "prompts/",
-    "skills/",
-    "scripts/",
     ".cursor/",
-    ".opencode/",
-    ".claude/",
+    "scripts/",
     "settings.example.json",
     "README.md",
     "README.kr.md",
     "THIRD_PARTY_LICENSES/",
     "LICENSE"
   ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "optionalDependencies": {
+    "@cursor/sdk": "^1.0.32"
+  },
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "status": "node scripts/work-status.mjs",
-    "doctor": "node scripts/doctor.mjs",
-    "sync": "node scripts/sync-harness.mjs",
-    "sync:check": "node scripts/sync-harness.mjs --check",
-    "install:harness": "node scripts/install.mjs"
-  },
-  "pi": {
-    "skills": ["./skills"],
-    "prompts": ["./prompts"],
-    "subagents": { "agents": ["./agents"] }
+    "doctor": "node scripts/doctor.mjs"
   }
 }
