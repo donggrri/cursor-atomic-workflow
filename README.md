@@ -1,126 +1,80 @@
 English | [한국어](README.kr.md)
 
-# matt-pocock-atomic-workflow
+# cursor-atomic-workflow
 
-A coding workflow package for Pi, also installable into Cursor, OpenCode, Claude Code, and Codex projects.  
+Atomic explore → plan → task → execute → review workflow for Cursor (SDK runner + Task subagents).
 `/matt-pocock-atomic-explore` (optional) → `/matt-pocock-atomic-plan` → `/matt-pocock-atomic-task` → `/matt-pocock-atomic-execute` → `/matt-pocock-atomic-review` → `/matt-pocock-atomic-wrapup`
+
+Slash commands keep the `matt-pocock-atomic-` prefix from the upstream workflow, but the package itself is **Cursor-only**.
 
 ---
 
 ## Table of contents
 
-1. [Install](#1-install)
-2. [Merge settings.json](#2-merge-settingsjson)
-3. [Login](#3-login)
-4. [Remove previous user files](#4-remove-previous-user-files)
-5. [Restart Pi](#5-restart-pi)
-6. [Usage](#6-usage)
-7. [How to change models per phase](#7-how-to-change-models-per-phase)
-8. [Don'ts](#8-donts)
-9. [Bundled matt-pocock skills](#9-bundled-matt-pocock-skills)
-10. [Use in Cursor, OpenCode, Claude Code, and Codex](#10-use-in-cursor-opencode-claude-code-and-codex)
-11. [Future work](#11-future-work)
+1. [What this package installs](#1-what-this-package-installs)
+2. [Install into a project](#2-install-into-a-project)
+3. [Usage](#3-usage)
+4. [Automated pipeline runner](#4-automated-pipeline-runner)
+5. [Per-phase models](#5-per-phase-models)
+6. [Don'ts](#6-donts)
+7. [Bundled matt-pocock skills](#7-bundled-matt-pocock-skills)
+8. [Maintaining this package](#8-maintaining-this-package)
+9. [Future work](#9-future-work)
 
 ---
 
-## 1. Install
+## 1. What this package installs
 
-```bash
-pi install git:github.com/donggrri/pi-subagents
-pi install npm:matt-pocock-atomic-workflow
-```
+Everything installs into the target Cursor project:
 
-Install from Git (alternative):
+| Component | Location | Role |
+|---|---|---|
+| Command skills | `.cursor/skills/matt-pocock-atomic-<name>/SKILL.md` | Each one is a slash command (`/matt-pocock-atomic-plan`, …) and holds the command logic |
+| Workflow skill | `.cursor/skills/matt-pocock-atomic-workflow/` | Orchestration docs (`CONTEXT.md`, `reference.md`, `workers.md`, `testing.md`, `models.md`), the Cursor harness adapter (`references/harness.md`), and bundled copies of `work-status.mjs` / `run-done.mjs` |
+| Subagents | `.cursor/agents/*.md` | 7 agents: `explorer`, `planner`, `tasker`, `worker`, `matt-pocock-atomic-reviewer`, `tester`, `cli-delegate` |
+| Runner scripts | `scripts/` | `install.mjs`, `run-pipeline.mjs`, `doctor.mjs`, `check-agents.mjs`, `work-status.mjs`, `run-done.mjs`, `lib/` |
+| Settings reference | `settings.example.json` | Pi-style `subagents.agentOverrides` reference (used by `/matt-pocock-atomic-config init`) |
 
-```bash
-pi install git:github.com/donggrri/cursor-atomic-workflow
-```
+Requires Node `>=22.13`. `@cursor/sdk` is an optional dependency at the package root and powers the SDK adapter of the pipeline runner.
 
-These are optional. Install only what you actually use:
-
-```bash
-pi install npm:@rahularya01/pi-cursor                 # Cursor models (`cursor/...`)
-pi install git:github.com/donggrri/pi-antigravity-bridge  # Antigravity models (`antigravity/...`) or `agy`
-```
+The bundled matt-pocock skills snapshot records its upstream source, revision, and MIT license in `THIRD_PARTY_LICENSES/mattpocock-skills-*`.
 
 ---
 
-## 2. Merge settings.json
+## 2. Install into a project
 
-Copy `settings.example.json` and merge it into `~/.pi/agent/settings.json`. (Or run `/matt-pocock-atomic-config init` in Pi.)
-
-```bash
-# If settings.json does not exist, copy it as-is
-cp settings.example.json ~/.pi/agent/settings.json
-
-# If it already exists, open both files and merge the agentOverrides block
-# (if you have jq)
-jq -s '.[0] * .[1]' ~/.pi/agent/settings.json settings.example.json > /tmp/merged.json
-mv /tmp/merged.json ~/.pi/agent/settings.json
-```
-
-Replace `YOUR_*` placeholders with real model IDs. Use whatever models you want; the IDs below are examples only.
-
-```json
-"explorer": {
-  "model": "xai/grok-4.6",
-  "fallbackModels": ["antigravity/claude-sonnet-4-6"]
-},
-"planner": {
-  "model": "xai/grok-4.6",
-  "fallbackModels": ["antigravity/claude-sonnet-4-6"]
-}
-```
-
-Available agent keys:  
-`explorer`, `planner`, `tasker`, `worker`, `reviewer`, `scout`, `oracle`, `researcher`, `delegate`
-
-If your settings still use `g-explorer` / `g-planner` keys, rename them to `explorer` / `planner` / `tasker` / `worker` / `reviewer`.
-
-For per-phase key descriptions and current settings, run `/matt-pocock-atomic-config` or `/matt-pocock-atomic-models` and Pi will walk you through it.
-
----
-
-## 3. Login
+From this repository (or an installed npm package directory), run:
 
 ```bash
-/login xai
-/login cursor   # only if you installed pi-cursor
-agy             # only if you installed pi-antigravity-bridge; interactive auth once
+node scripts/install.mjs --target /path/to/project
+```
+
+| Option | Meaning |
+|---|---|
+| `--target <dir>` | Target project (default: current directory) |
+| `--skills-dir <path>` | Skills destination (default: `.cursor/skills`) |
+| `--force` | Overwrite existing files (otherwise they are kept) |
+| `--set-model <agent>=<model>` | Pin a phase model in the agent frontmatter (repeatable) |
+| `--no-skills` / `--no-agents` | Skip a component |
+| `-h, --help` | Help |
+
+```bash
+# reinstall over an existing install and pin a model
+node scripts/install.mjs --target /path/to/project --force --set-model worker=composer-2.5
+```
+
+If the project still has an older install's `.cursor/commands/matt-pocock-atomic-*.md`, delete those files: the command skills now provide the same slash commands, and keeping both shows each command twice. The installer and `doctor` list them.
+
+Check the install state any time:
+
+```bash
+node scripts/doctor.mjs        # skill collisions, YAML frontmatter, bundled script sync, install state (--fix applies auto-fixes)
+node scripts/check-agents.mjs  # .cursor/agents models match scripts/lib/roles.mjs
 ```
 
 ---
 
-## 4. Remove previous user files
-
-If you previously created copies in your user home, delete them.  
-Leaving them in place will shadow the skills, prompts, and agents this package registers, and produce conflict warnings.
-
-```bash
-rm ~/.pi/agent/agents/g-*.md
-rm ~/.pi/agent/agents/{explorer,planner,tasker,worker,reviewer}.md
-rm ~/.pi/agent/prompts/g-*.md ~/.pi/agent/prompts/matt-pocock-atomic-*.md
-rm -rf ~/.agents/skills/matt-pocock-atomic-workflow
-```
-
-> **Caution**: Compare them with this repository's files first. If there are differences, merge those changes before deleting.
-
----
-
-## 5. Restart Pi
-
-```bash
-# If you use the Pi CLI
-pi restart
-
-# Or restart the Pi app
-```
-
-After restart, if `/matt-pocock-atomic-plan` appears, installation is complete.
-
----
-
-## 6. Usage
+## 3. Usage
 
 Default: once **PLAN is confirmed**, task → execute → review run automatically. Commit only happens with `/matt-pocock-atomic-wrapup`.
 
@@ -133,56 +87,74 @@ Default: once **PLAN is confirmed**, task → execute → review run automatical
 | `/matt-pocock-atomic-delegate` | Phase 3: delegate to a specific worker | same |
 | `/matt-pocock-atomic-review` | Phase 4 | `~/.matt-pocock-workflow/docs/{shortRepo}/{slug}/REVIEW-<slug>.md` |
 | `/matt-pocock-atomic-wrapup` | Phase 5: wrapup (commit, no push) | git commit + STATUS |
+| `/matt-pocock-atomic-run` | Explicit pipeline entry: skip triage and run the workflow from explore | same as plan |
 | `/matt-pocock-atomic-status` | Progress report (`npm run status` / `STATUS.json`) | text summary / table |
-| `/matt-pocock-atomic-config` | Manage matt-pocock-atomic-workflow model/skill settings (`/matt-pocock-atomic-settings`) | text/interactive settings |
+| `/matt-pocock-atomic-config` | Manage workflow model/skill settings (`/matt-pocock-atomic-settings`) | text/interactive settings |
 | `/matt-pocock-atomic-models` | Model settings guide (read-only) | text guide |
 | `/matt-pocock-atomic-doctor` | Diagnose skill collisions, YAML frontmatter syntax, and apply auto-fix | text report / auto-fix |
 
+Artifacts live under `~/.matt-pocock-workflow/docs/{shortRepo}/{slug}/` (override the home with `MATT_POCOCK_WORKFLOW_HOME`).
+
 If PLAN has blocking questions (security, scope, data loss), it stops there. To write a plan only, use `/matt-pocock-atomic-plan 계획만`.
 
-To use a different model per phase, pick it per agent in `settings.json` under `subagents.agentOverrides`. You cannot attach a model to a skill itself.
-
 ---
 
-## 7. How to change models per phase
+## 4. Automated pipeline runner
 
-The easy way is to run `/matt-pocock-atomic-config <agent> <model>` in a Pi session, or `/matt-pocock-atomic-config` for the interactive flow. Pick any model you want per agent.
+`scripts/run-pipeline.mjs` runs the phases headlessly instead of driving them from a chat session:
 
-To edit it yourself:
-1. Open `~/.pi/agent/settings.json` and find the agent key under `subagents.agentOverrides`.
-2. Change `model` and `fallbackModels` to the values you want.
-3. Restart Pi or start a new conversation for the change to take effect.
-
-```json
-{
-  "subagents": {
-    "agentOverrides": {
-      "worker": {
-        "model": "xai/grok-4.6",
-        "fallbackModels": ["antigravity/claude-sonnet-4-6", "cursor/composer-2.5"]
-      }
-    }
-  }
-}
+```bash
+node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-card] [--repo <dir>] [--dry-run]
 ```
 
-**Do not edit agent `.md` files directly.** If you put a `model` key in frontmatter, settings overrides are ignored.  
-For more detail, run `/matt-pocock-atomic-models`.
+- `--adapter sdk` (default) drives Cursor Task subagents through `@cursor/sdk`. Without the SDK it falls back to `--adapter task-card`, stops with exit code `10`, and leaves `next-card.json` for the parent session to execute and `--resume`.
+- The log lives at `~/.matt-pocock-workflow/runs/{shortRepo}/{slug}/pipeline.log`; per-step command logs get a `.done.json` summary next to them.
+- `--resume` retries failed items (already checked items stay done).
+
+Exit codes:
+
+| Code | Meaning |
+|---|---|
+| 0 | Pipeline finished |
+| 2 | Usage error |
+| 10 | Parent action required (task-card hand-off) |
+| 20 | Human gate (PLAN approval) |
+| 30 | A task item failed |
+| 40 | Defects remained after the one rework round |
+| 50 | Startup failure |
 
 ---
 
-## 8. Don'ts
+## 5. Per-phase models
+
+The model for a phase is the `model` frontmatter of `.cursor/agents/<agent>.md`, and every Task call passes it explicitly. Defaults come from `scripts/lib/roles.mjs`, and `node scripts/check-agents.mjs` verifies the files still match it:
+
+| Role | subagent_type | Task model |
+|---|---|---|
+| explorer | `explorer` | `composer-2.5` |
+| planner | `planner` | `claude-opus-5-5-high` |
+| tasker | `tasker` | `composer-2.5` |
+| worker | `worker` | `composer-2.5` |
+| reviewer | `matt-pocock-atomic-reviewer` | `grok-4.7-xhigh` (fallback `claude-sonnet-5-5-high`) |
+| tester | `tester` | `composer-2.5` |
+| cli-delegate | `cli-delegate` | `composer-2.5` |
+
+To change a model, edit the agent frontmatter and keep `scripts/lib/roles.mjs` in agreement (`check-agents` fails otherwise), or pin it at install time with `--set-model <agent>=<model>` (repeatable).
+
+---
+
+## 6. Don'ts
 
 - **No push**: `git push` only when you explicitly want it. The agent does not push.
 - **No secrets**: Do not commit tokens, API keys, or `.env`, and do not put them in worker briefs.
-- **Other harnesses**: `pi install` only sets up Pi. For Cursor, OpenCode, Claude Code, or Codex, follow [section 10](#10-use-in-cursor-opencode-claude-code-and-codex).
-- **Do not edit installed package files**: Installed `agents/*.md`, `prompts/*.md`, and skills are overwritten on package update. In Pi, change models only in settings.json.
+- **Cursor only**: this package installs into Cursor projects only. It does not set up Pi, OpenCode, Claude Code, or Codex.
+- **Do not edit installed package files casually**: installed `.cursor/agents/*.md` and skills are overwritten by `--force` reinstalls and package updates. Keep changes in this repository and reinstall.
 
 ---
 
-## 9. Bundled matt-pocock skills
+## 7. Bundled matt-pocock skills
 
-Installing this package also installs the skills below as Pi package resources, so they are discovered immediately. You do not need a separate `npx skills add` or `~/.codex/skills` setup.
+Installing this package also installs the skills below, so they are discovered immediately — no separate skill-manager setup needed.
 
 | Phase | Who runs it | Required skills |
 |---|---|---|
@@ -198,70 +170,30 @@ The bundled snapshot's source repository, revision, and MIT license are recorded
 
 ---
 
-## 10. Use in Cursor, OpenCode, Claude Code, and Codex
+## 8. Maintaining this package
 
-Every slash command is a skill: `skills/matt-pocock-atomic-<name>/SKILL.md` holds the command logic once, in harness-neutral wording, with `disable-model-invocation: true` so it only runs when you call it. Harness differences (how to spawn subagents, where arguments arrive, script paths, harness-only tools) live in one place: `skills/matt-pocock-atomic-workflow/references/harness.md`.
+Edit files in place — there is no generator step.
 
-| Harness | Slash command | Subagents | Per-phase model |
-|---|---|---|---|
-| Pi | `/matt-pocock-atomic-plan` (thin shim in `prompts/`) | `agents/*.md` | `settings.json` `subagents.agentOverrides` |
-| Cursor | `/matt-pocock-atomic-plan` (the skill itself) | `.cursor/agents/*.md` | `model` in the agent file |
-| OpenCode | `/matt-pocock-atomic-plan` (thin shim in `.opencode/commands/`) | `.opencode/agents/*.md` | `model` in the agent file |
-| Claude Code | `/matt-pocock-atomic-plan` (the skill itself) | `.claude/agents/*.md` | `model` in the agent file |
-| Codex | `$matt-pocock-atomic-plan` (the skill itself) | none (spawn with the role in the message) | session model |
-
-All seven agents (`explorer`, `planner`, `tasker`, `worker`, `reviewer`, `tester`, `cli-delegate`) are generated for Cursor, OpenCode, and Claude Code.
-
-### Install into a project
+| Change | Edit |
+|---|---|
+| Command behavior | `.cursor/skills/matt-pocock-atomic-<name>/SKILL.md` |
+| Agent role / per-phase model | `.cursor/agents/<agent>.md` (+ `scripts/lib/roles.mjs`) |
+| Harness differences | `.cursor/skills/matt-pocock-atomic-workflow/references/harness.md` |
+| Workflow scripts | `scripts/work-status.mjs`, `scripts/run-done.mjs` — keep the copies in `.cursor/skills/matt-pocock-atomic-workflow/scripts/` identical |
 
 ```bash
-# from this repository (or the installed npm package)
-node scripts/install.mjs --harness cursor --target /path/to/project
-node scripts/install.mjs --harness opencode,claude --target /path/to/project
+npm test                    # structure, agent, artifact-path and bundled-script sync tests
+node scripts/doctor.mjs     # collisions, YAML frontmatter, sync + install state
 ```
 
-| `--harness` | Skills (all of `skills/*`, including command skills) | Agents | Command shims |
-|---|---|---|---|
-| `cursor` | `.agents/skills/` | `.cursor/agents/` | none needed |
-| `opencode` | `.agents/skills/` | `.opencode/agents/` | `.opencode/commands/` |
-| `claude` | `.claude/skills/` | `.claude/agents/` | none needed |
-| `codex` | `.agents/skills/` | none | none needed |
-
-Existing files are kept unless you pass `--force`. `--skills-dir` overrides the skills location, and `--no-skills` / `--no-agents` / `--no-commands` skip a component. To pin a phase model at install time, repeat `--set-model`:
-
-```bash
-node scripts/install.mjs --harness cursor --target /path/to/project --set-model worker=composer-2.5[]
-```
-
-If the project still has an older install's `.cursor/commands/matt-pocock-atomic-*.md`, delete those files: the command skills now provide the same slash commands, and keeping both shows each command twice. The installer and `doctor` list them.
-
-### Maintaining this package
-
-Edit only the sources. Everything else is generated.
-
-| Change | Edit | Generated from it |
-|---|---|---|
-| Command behavior | `skills/matt-pocock-atomic-<name>/SKILL.md` | `prompts/<name>.md`, `.opencode/commands/<name>.md` |
-| Agent role | `agents/<agent>.md` | `.cursor/agents/`, `.opencode/agents/`, `.claude/agents/` |
-| Harness differences | `skills/matt-pocock-atomic-workflow/references/harness.md` | — |
-| Workflow scripts | `scripts/work-status.mjs`, `scripts/run-done.mjs` | copies in `skills/matt-pocock-atomic-workflow/scripts/` |
-
-```bash
-node scripts/sync-harness.mjs          # regenerate, and delete generated files whose source is gone
-node scripts/sync-harness.mjs --check  # drift check (for CI)
-npm test                               # includes harness-sync tests
-node scripts/doctor.mjs                # section 3 checks sync + install state
-```
-
-To add a command, create `skills/matt-pocock-atomic-<name>/SKILL.md` (with `disable-model-invocation: true` and a description ending in "사용자가 직접 호출할 때만 쓴다.") and run `node scripts/sync-harness.mjs`.
+To add a command, create `.cursor/skills/matt-pocock-atomic-<name>/SKILL.md` with `disable-model-invocation: true` and a description ending in "사용자가 직접 호출할 때만 쓴다." (so it only runs when the user calls it), then run `npm test`.
 
 ---
 
-## 11. Future work
+## 9. Future work
 
-These items are documented only. They are not implemented in this package yet. Priorities and the harness-unification plan live in [ROADMAP.md](ROADMAP.md) (Korean).
+These items are documented only. They are not implemented in this package yet. Priorities live in [ROADMAP.md](ROADMAP.md) (Korean). Note that ROADMAP's harness-unification section describes the earlier multi-harness structure and predates the Cursor-only rewrite.
 
-- **README agent keys**: some package agents (for example `tester`, `cli-delegate`) are missing from the settings key list above.
 - **CONTEXT.md vs `run-done` evidence path**: CONTEXT.md documents `runs/<slug>/<id>.done.json`, while `scripts/run-done.mjs` writes `${logPath}.done.json`.
 - **Parallel worktree integration**: there is no merge step for sibling worktrees.
 - **PR/CI**: this workflow has no pull-request or CI pipeline.
