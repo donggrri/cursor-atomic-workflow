@@ -10,6 +10,13 @@ import { getWorkflowPaths } from "../work-status.mjs";
 import { getRole } from "./roles.mjs";
 import { bugbotGate } from "./bugbot.mjs";
 import { planReviewGate, planReviewPath } from "./plan-review.mjs";
+import {
+  DEFAULT_PROFILE_ID,
+  getProfile,
+  plannerProfileLines,
+  resolveProfileId,
+  testerStep,
+} from "./profiles.mjs";
 
 const CLI_DELEGATE_WORKERS = new Set(["agy", "pi", "opencode", "codex", "claude"]);
 
@@ -240,6 +247,54 @@ export async function runPipeline(opts) {
 
   const planText = readFileSync(planPath, "utf8");
 
+  function emit(line) {
+    log(line);
+    mkdirSync(paths.runsDir, { recursive: true });
+    appendFileSync(join(paths.runsDir, "pipeline.log"), `${line}\n`);
+  }
+
+  const profileOptions = {
+    repoRoot,
+    ...(opts.profileOptions ?? {}),
+  };
+  const stateFile = join(paths.runsDir, "pipeline.json");
+  const hasState = existsSync(stateFile);
+  const storedProfile = hasState ? (state.profile ?? DEFAULT_PROFILE_ID) : null;
+  const cliProfile = opts.profileId ?? null;
+
+  if (cliProfile && storedProfile && cliProfile !== storedProfile) {
+    emit(
+      `profile mismatch: pipeline.json has ${storedProfile}, --profile ${cliProfile}`
+    );
+    return { exitCode: 2, state };
+  }
+
+  let profileId = cliProfile ?? storedProfile;
+  if (!profileId) {
+    const resolved = resolveProfileId({
+      cliProfile: null,
+      repoRoot,
+      workflowHome: profileOptions.workflowHome,
+      exists: profileOptions.exists,
+      readFile: profileOptions.readFile,
+    });
+    if (!resolved.ok) {
+      emit(resolved.reason);
+      return { exitCode: 2, state };
+    }
+    profileId = resolved.id;
+  }
+
+  const loaded = getProfile(profileId, profileOptions);
+  if (!loaded.ok) {
+    emit(loaded.reason);
+    return { exitCode: 2, state };
+  }
+  for (const warning of loaded.warnings) emit(warning);
+  const profile = loaded.profile;
+  state.profile = profile.id;
+  emit(`profile: ${profile.id}`);
+
   if (flags.dryRun) {
     const next = state.cursor?.phase ?? "blocked-gate";
     log(`dry-run: next phase ${next}`);
@@ -345,6 +400,7 @@ export async function runPipeline(opts) {
       planReviewPath: planReviewFilePath,
       runsDir: paths.runsDir,
       runRole: (role, prompt) => runRoleStep(role, prompt, "plan-review"),
+      plannerLines: plannerProfileLines(profile, planPath),
       isBlocked: planHasBlockedQuestions,
       save: (pr) => {
         state.planReview = pr;
@@ -599,7 +655,8 @@ export async function runPipeline(opts) {
   }
 
   if (state.cursor?.phase === "tester" || cursorPhase === "tester") {
-    const ter = await runRoleStep("tester", `Test slug ${slug}`, "tester");
+    const step = testerStep(profile, slug);
+    const ter = await runRoleStep("tester", step.prompt, "tester");
     await syncAfter({ statusSync }, slug);
     if (!ter.ok) {
       if (ter.exitCode === 10) return { exitCode: 10, state };
@@ -607,11 +664,13 @@ export async function runPipeline(opts) {
       return { exitCode: 30, state };
     }
 
-    await runDone({
-      taskId: "tester",
-      command: "npm test",
-      cwd: repoRoot,
-    });
+    if (step.done) {
+      await runDone({
+        taskId: "tester",
+        command: step.done,
+        cwd: repoRoot,
+      });
+    }
     await syncAfter({ statusSync }, slug);
 
     state.cursor = { phase: "complete" };

@@ -103,6 +103,7 @@ test("package.json meets public publish metadata contract", async () => {
   const expectedFiles = [
     ".cursor/",
     "scripts/",
+    "profiles/",
     "settings.example.json",
     "README.md",
     "README.kr.md",

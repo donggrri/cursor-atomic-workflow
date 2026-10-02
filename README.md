@@ -104,12 +104,13 @@ If PLAN has blocking questions (security, scope, data loss), it stops there. To 
 `scripts/run-pipeline.mjs` runs the phases headlessly instead of driving them from a chat session:
 
 ```bash
-node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-card] [--repo <dir>] [--dry-run]
+node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-card] [--profile <id>] [--repo <dir>] [--dry-run]
 ```
 
 - `--adapter sdk` (default) drives Cursor Task subagents through `@cursor/sdk`. Without the SDK it falls back to `--adapter task-card`, stops with exit code `10`, and leaves `next-card.json` for the parent session to execute and `--resume`. After the cost gate, **plan-review** runs `plan-reviewer` (writes `PLAN-REVIEW-<slug>.md`); blocking defects trigger one planner auto-revision and re-review, then exit `20` if defects remain. On **Review** entry (initial and after rework), exit `10` may be a **`kind: "bugbot"`** card first: the parent runs Cursor `bugbot`, saves output to `~/.matt-pocock-workflow/runs/{shortRepo}/{slug}/bugbot-findings.md` (or a `# BUGBOT_FAILED` marker on failure), then `--resume` before the reviewer runs.
 - The log lives at `~/.matt-pocock-workflow/runs/{shortRepo}/{slug}/pipeline.log`; per-step command logs get a `.done.json` summary next to them.
 - `--resume` retries failed items (already checked items stay done).
+- `--profile <id>` swaps only the plan and test instructions. Omit it and the runner uses the project file `.matt-pocock-workflow.json`, then `~/.matt-pocock-workflow/settings.json`, then `atomic`. PLAN, TASKS, and REVIEW stay under `~/.matt-pocock-workflow/docs/{shortRepo}/{slug}/`. A profile JSON lives in `profiles/<id>.json` (package), `~/.matt-pocock-workflow/profiles/<id>.json`, or the repo `profiles/<id>.json`. Later locations win. Do not put secrets in that JSON. The bundled `bsp` profile points at `~/edge_bsp_foundation` command files.
 
 Exit codes:
 

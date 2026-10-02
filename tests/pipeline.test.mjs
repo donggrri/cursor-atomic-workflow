@@ -1559,3 +1559,139 @@ test("19 task-card 스킬 경로 — 저장소 파일이 있을 때만 그 경�
     assert.equal(cardEmpty.prompt.includes(repoWorkflow), false);
   });
 });
+
+test("profile atomic tester keeps Test slug prompt and npm test", async () => {
+  await withHome(async (home) => {
+    const { repoRoot } = createFixture(home, {
+      tasksContent: tasksTwoItems({ t1Checked: true, t2Checked: true }),
+      pipelineJson: {
+        cursor: { phase: "tester" },
+        costAck: true,
+        reworkUsed: false,
+        attempts: [],
+      },
+    });
+    /** @type {Array<{ taskId?: string, command?: string }>} */
+    const dones = [];
+    /** @type {string[]} */
+    const prompts = [];
+    const result = await runPipeline(
+      pipelineOpts(repoRoot, home, {
+        flags: { auto: true, resume: true, dryRun: false },
+        profileOptions: { packageRoot: home, workflowHome: home, homeDir: home },
+        adapter: {
+          async runRole({ prompt }) {
+            prompts.push(prompt);
+            return { ok: true, summary: "ok" };
+          },
+        },
+        runDone: async (args) => {
+          dones.push(args);
+          return { ok: true };
+        },
+        statusSync: async () => {},
+      })
+    );
+    assert.equal(result.exitCode, 0);
+    assert.deepEqual(prompts, ["Test slug pipe-run"]);
+    assert.equal(dones.filter((item) => item.taskId === "tester").length, 1);
+    assert.equal(dones.find((item) => item.taskId === "tester").command, "npm test");
+  });
+});
+
+test("profile with test.command skips npm test and names the command", async () => {
+  await withHome(async (home) => {
+    const { repoRoot, paths } = createFixture(home, {
+      tasksContent: tasksTwoItems({ t1Checked: true, t2Checked: true }),
+      pipelineJson: {
+        cursor: { phase: "tester" },
+        profile: "ext",
+        costAck: true,
+        reworkUsed: false,
+        attempts: [],
+      },
+    });
+    const cmd = join(home, "test.md");
+    writeFileSync(cmd, "# test\n", "utf8");
+    mkdirSync(join(repoRoot, "profiles"), { recursive: true });
+    writeFileSync(
+      join(repoRoot, "profiles", "ext.json"),
+      JSON.stringify({ id: "ext", test: { command: cmd } }),
+      "utf8"
+    );
+    /** @type {string[]} */
+    const prompts = [];
+    let testerDones = 0;
+    const result = await runPipeline(
+      pipelineOpts(repoRoot, home, {
+        flags: { auto: true, resume: true, dryRun: false },
+        profileOptions: { packageRoot: home, workflowHome: home, homeDir: home },
+        adapter: {
+          async runRole({ prompt }) {
+            prompts.push(prompt);
+            return { ok: true, summary: "ok" };
+          },
+        },
+        runDone: async (args) => {
+          if (args.taskId === "tester") testerDones += 1;
+          return { ok: true };
+        },
+        statusSync: async () => {},
+      })
+    );
+    assert.equal(result.exitCode, 0);
+    assert.match(prompts[0], new RegExp(cmd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(prompts[0], /do not SSH/);
+    assert.equal(testerDones, 0);
+    assert.equal(result.state.profile, "ext");
+    assert.ok(existsSync(join(paths.runsDir, "pipeline.log")));
+  });
+});
+
+test("unknown profile exits 2 and lists known ids", async () => {
+  await withHome(async (home) => {
+    const { repoRoot, paths } = createFixture(home);
+    const lines = [];
+    const result = await runPipeline(
+      pipelineOpts(repoRoot, home, {
+        profileId: "nope",
+        flags: { auto: true, resume: false, dryRun: true },
+        profileOptions: { packageRoot: home, workflowHome: home, homeDir: home },
+        log: (line) => lines.push(line),
+        adapter: { async runRole() { return { ok: true, summary: "no" }; } },
+        runDone: async () => ({ ok: true }),
+        statusSync: async () => {},
+      })
+    );
+    assert.equal(result.exitCode, 2);
+    const log = readFileSync(join(paths.runsDir, "pipeline.log"), "utf8");
+    assert.match(log, /unknown profile: nope/);
+    assert.match(log, /atomic/);
+    assert.equal(lines.some((line) => /unknown profile/.test(line)), true);
+  });
+});
+
+test("resume with a different --profile exits 2", async () => {
+  await withHome(async (home) => {
+    const { repoRoot } = createFixture(home, {
+      pipelineJson: {
+        cursor: { phase: "cost-gate" },
+        profile: "bsp",
+        costAck: true,
+        reworkUsed: false,
+        attempts: [],
+      },
+    });
+    const result = await runPipeline(
+      pipelineOpts(repoRoot, home, {
+        profileId: "atomic",
+        flags: { auto: true, resume: true, dryRun: true },
+        profileOptions: { packageRoot: home, workflowHome: home, homeDir: home },
+        adapter: { async runRole() { return { ok: true, summary: "no" }; } },
+        runDone: async () => ({ ok: true }),
+        statusSync: async () => {},
+      })
+    );
+    assert.equal(result.exitCode, 2);
+  });
+});

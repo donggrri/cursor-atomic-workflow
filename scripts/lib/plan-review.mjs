@@ -84,15 +84,25 @@ function buildCritiquePrompt({ slug, round, repoRoot, planPath, planReviewPath: 
  *   planReviewPath: string,
  * }} params
  */
-function buildRevisePrompt({ slug, repoRoot, planPath, planReviewPath: reviewPath }) {
+function buildRevisePrompt({
+  slug,
+  repoRoot,
+  planPath,
+  planReviewPath: reviewPath,
+  extraLines = [],
+}) {
   const instructions = agentInstructionsPath(repoRoot, "planner.md");
-  return [
+  const lines = [
     `Revise PLAN for slug ${slug} (plan-review auto-revision 1/1)`,
     `Instructions: ${instructions}`,
     `PLAN: ${planPath}`,
     `PLAN-REVIEW: ${reviewPath}`,
     "Fix only `## 계획 결함` items. Keep `## 계획 정제` settled decisions. Append `## 자동 수정 기록`.",
-  ].join("\n");
+  ];
+  for (const line of extraLines) {
+    if (line) lines.push(line);
+  }
+  return lines.join("\n");
 }
 
 /**
@@ -289,6 +299,7 @@ export async function planReviewGate(params) {
         repoRoot: params.repoRoot,
         planPath: params.planPath,
         planReviewPath: params.planReviewPath,
+        extraLines: params.plannerLines ?? [],
       });
       const run = await params.runRole("planner", prompt);
       const failure = mapRunFailure(run, pr);

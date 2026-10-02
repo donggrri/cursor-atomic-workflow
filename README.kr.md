@@ -104,12 +104,13 @@ PLAN에 막힌 질문(보안·범위·데이터 손실)이 있으면 거기서 �
 `scripts/run-pipeline.mjs`는 대화 세션 대신 단계를 headless로 실행한다:
 
 ```bash
-node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-card] [--repo <dir>] [--dry-run]
+node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-card] [--profile <id>] [--repo <dir>] [--dry-run]
 ```
 
 - `--adapter sdk`(기본)는 `@cursor/sdk`로 Cursor Task 서브에이전트를 구동한다. SDK가 없으면 `--adapter task-card`로 떨어져 종료코드 `10`으로 멈추고, 부모 세션이 실행할 `next-card.json`을 남긴다. 이후 `--resume`한다. cost-gate 뒤 **plan-review**가 `plan-reviewer`를 실행해 `PLAN-REVIEW-<slug>.md`를 쓰고, 차단 결함은 planner 1회 자동 수정·재검토 후에도 남으면 종료코드 `20`으로 멈춘다. **Review** 진입(초기·재작업 후)마다 종료코드 `10`이 **`kind: "bugbot"`** 선행 검토 카드일 수 있다. 부모가 Cursor `bugbot`을 실행하고 `~/.matt-pocock-workflow/runs/{shortRepo}/{slug}/bugbot-findings.md`에 결과를 저장(실패 시 `# BUGBOT_FAILED` 마커)한 뒤 `--resume`하고 reviewer가 이어진다.
 - 로그는 `~/.matt-pocock-workflow/runs/{shortRepo}/{slug}/pipeline.log`에 쌓이고, 단계별 커맨드 로그 옆에는 `.done.json` 요약이 생긴다.
 - `--resume`은 실패한 항목만 재시도한다(이미 체크된 항목은 유지).
+- `--profile <id>`는 plan·test 지침만 바꾼다. 생략하면 프로젝트 `.matt-pocock-workflow.json`의 `profile`, 그다음 `~/.matt-pocock-workflow/settings.json`의 `profile`, 없으면 `atomic`이다. PLAN·TASKS·REVIEW는 그대로 `~/.matt-pocock-workflow/docs/{shortRepo}/{slug}/`에 둔다. 프로필 JSON은 패키지 `profiles/<id>.json`, `~/.matt-pocock-workflow/profiles/<id>.json`, 저장소 `profiles/<id>.json` 순으로 찾고 나중 위치가 이긴다. JSON에 시크릿을 넣지 않는다. 포함된 `bsp` 프로필은 `~/edge_bsp_foundation`의 명령 파일을 가리킨다.
 
 종료 코드:
 

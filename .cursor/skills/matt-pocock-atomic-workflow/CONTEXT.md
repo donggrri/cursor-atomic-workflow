@@ -99,3 +99,4 @@ Review 단계(Phase 4)에 **진입할 때마다** 부모 오케스트레이터�
 | PLAN 비판 검토 | cost-gate 뒤 plan-reviewer가 PLAN-REVIEW를 쓰는 자동 검토. exit 20은 PLAN 게이트 복귀. |
 | PLAN 자동 수정 | plan-review 차단 결함 시 planner가 PLAN 1회 수정. 승인본과 다를 수 있음. |
 | Bugbot 선행 검토 | Review 진입마다 부모가 실행하는 Cursor bugbot. 결과는 reviewer 트리아지 입력이며 증거·게이트가 아님. |
+| 프로필 | plan·test 지침 묶음. id로 고른다. 단계 순서와 PLAN 파일 위치는 바꾸지 않는다. |

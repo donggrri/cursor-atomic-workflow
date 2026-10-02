@@ -136,6 +136,7 @@ function gateEnv(opts) {
         appendLog: (line) => {
           logLines.push(line);
         },
+        plannerLines: opts.plannerLines,
       });
     },
   };
@@ -599,6 +600,30 @@ test("planReviewGate: revise prompt shape", async () => {
 
     await env.runGate();
     assert.equal(sawPlanner, true);
+  } finally {
+    rmSync(runsDir, { recursive: true, force: true });
+  }
+});
+
+test("planReviewGate: revise prompt appends planner profile lines", async () => {
+  const runsDir = makeTempDir("pr-revise-profile-");
+  const docsDir = join(runsDir, "docs");
+  try {
+    const env = gateEnv({
+      docsDir,
+      runsDir,
+      plannerLines: ["Profile plan command: /tmp/myplan.md — read and follow it, but write the output only to /tmp/PLAN.md."],
+      runRole: async (role, prompt) => {
+        if (role === "plan-reviewer") {
+          writeFileSync(planReviewPath(docsDir, SLUG), planReviewDoc("- [x] issue"), "utf8");
+          return { ok: true };
+        }
+        assert.match(prompt, /Profile plan command: \/tmp\/myplan.md/);
+        writeFileSync(join(docsDir, `PLAN-${SLUG}.md`), "# changed\n", "utf8");
+        return { ok: true };
+      },
+    });
+    await env.runGate();
   } finally {
     rmSync(runsDir, { recursive: true, force: true });
   }

@@ -1,0 +1,9 @@
+{
+  "id": "bsp",
+  "plan": {
+    "command": "~/edge_bsp_foundation/plugins/bsp-workflow/commands/myplan.md"
+  },
+  "test": {
+    "command": "~/edge_bsp_foundation/plugins/bsp-workflow/commands/test.md"
+  }
+}

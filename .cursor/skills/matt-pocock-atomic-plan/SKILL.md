@@ -14,7 +14,7 @@ metadata:
 
 서브에이전트 호출법, 스크립트 경로, 하네스 전용 도구는 `matt-pocock-atomic-workflow`의 `references/harness.md`를 따른다. CLI 워커를 직접 설치하거나 `agy`/`codex`를 인자 없이 실행하지 마라.
 
-모든 작업(제품 기능 및 워크플로 자체)은 단일 전역 홈 `~/.matt-pocock-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md`에 쓴다 (레거시: `.docs/<slug>/`, `docs/<slug>/`). 쓰기 전 슬러그 디렉토리를 만든다. 홈·스킬·제품 루트·제품 `docs/`를 서로 혼용하지 않는다.
+모든 작업(제품 기능 및 워크플로 자체)은 단일 전역 홈 `~/.matt-pocock-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md`에 쓴다 (레거시: `.docs/<slug>/`, `docs/<slug>/`). 쓰기 전 슬러그 디렉토리를 만든다. 홈·스킬·제품 루트·제품 `docs/`를 서로 혼용하지 않는다. `--profile <id>`가 있어도 산출물 위치는 같다. 그 프로필의 `plan.command`가 있으면 planner 브리프에 그 경로를 넣고, 러너에도 같은 `--profile`을 넘긴다. 외부 명령 파일은 지침일 뿐이고 제품 저장소의 `docs/plan/`으로 옮기지 않는다.
 
 ## Planning preflight — 부모가 직접 수행
 

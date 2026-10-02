@@ -14,12 +14,13 @@ export const SDK_INSTALL_HINT =
 export const TASK_CARD_EXPLICIT_HINT =
   "task-card selected: --adapter task-card";
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const args = argv.slice(2);
   const flags = { auto: false, resume: false, dryRun: false };
   let slug = null;
   let repo = process.cwd();
   let adapterName = null;
+  let profileId = null;
 
   for (let i = 0; i < args.length; i += 1) {
     const a = args[i];
@@ -28,6 +29,13 @@ function parseArgs(argv) {
     else if (a === "--dry-run") flags.dryRun = true;
     else if (a === "--adapter") {
       adapterName = args[i + 1];
+      i += 1;
+    } else if (a === "--profile") {
+      const value = args[i + 1];
+      if (!value || value.startsWith("-")) {
+        return { error: "missing --profile value" };
+      }
+      profileId = value;
       i += 1;
     } else if (a === "--repo") {
       repo = resolve(args[i + 1] ?? "");
@@ -41,11 +49,11 @@ function parseArgs(argv) {
     }
   }
 
-  return { slug, repo, flags, adapterName };
+  return { slug, repo, flags, adapterName, profileId };
 }
 
 function usage() {
-  return `Usage: node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-card] [--repo <dir>] [--dry-run]`;
+  return `Usage: node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-card] [--profile <id>] [--repo <dir>] [--dry-run]`;
 }
 
 function oneLine(text) {
@@ -164,13 +172,14 @@ async function main() {
     process.exit(2);
   }
 
-  const { slug, repo, flags, adapterName } = parsed;
+  const { slug, repo, flags, adapterName, profileId } = parsed;
 
   if (flags.dryRun) {
     const result = await runPipeline({
       repoRoot: repo,
       slug,
       flags,
+      profileId,
       adapter: {
         async runRole() {
           return { ok: true, summary: "dry-run" };
@@ -206,6 +215,7 @@ async function main() {
     repoRoot: repo,
     slug,
     flags,
+    profileId,
     adapter,
     runDone: async ({ taskId, command, cwd }) => {
       const { runsDir } = getWorkflowPaths(repo, slug);
