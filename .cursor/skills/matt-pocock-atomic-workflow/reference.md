@@ -154,6 +154,32 @@ git worktree list
 허용 워커: worker, scout, oracle, reviewer, self, cli-delegate, agy, pi, opencode, codex, claude
 ```
 
+## PLAN-REVIEW-\<slug\>.md
+
+`run-pipeline.mjs` plan-review(Phase 1.5) 산출물. `plan-reviewer`만 작성한다.
+
+```markdown
+# PLAN-REVIEW: <제목>
+
+PLAN: PLAN-<slug>.md
+라운드: <n>
+상태: Phase 1.5
+
+## 검토 관점
+- 설계 / 가정 / 과잉·과소 / NON-GOALS / 의존 순서 / 테스트 전략 / 기존 계약 / 상태 호환: 확인함
+
+## 계획 결함
+
+없음. 또는:
+- [<관점>] <근거: 파일:줄 · 계약 · 테스트> — <영향> — <고칠 방향>
+
+## 개선 제안
+- <비차단>
+
+## 수용된 위험
+- <「계획 정제」에서 사용자가 확정한 것. 결함으로 올리지 않음>
+```
+
 ## TASKS-\<slug\>.md
 
 ```markdown
@@ -226,7 +252,16 @@ TASKS: TASKS-<slug>.md
 ## 결함
 
 없음. 또는:
-- <파일:증상>
+- <파일:증상> (bugbot에서 채택한 지적은 여기에 적고, 재작업 TASKS가 분명하면 `T#` 포함)
+
+## Bugbot 트리아지
+
+파이프라인 Review에서만 해당. 수동 review면 「해당 없음」.
+
+- **BUGBOT_FAILED**인 경우: 실패 사실과 `reason:` 등 기록된 사유만 적는다. 두 축 검증은 위 절들에 그대로.
+- **정상 findings**인 경우:
+  - **채택**: <지적 요약> — 사유: <diff·PLAN·TASKS 대조 근거> (채택 내용은 `## 결함`에도 반영, T#는 결함 절에만)
+  - **기각**: <지적 요약> — 사유: <기각 근거> (기각 항목에는 T# 쓰지 않음)
 
 ## 문서
 

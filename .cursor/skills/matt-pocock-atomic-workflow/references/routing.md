@@ -31,7 +31,7 @@
 | **질문 생략** | `--auto` 플래그 또는 사용자가 「알아서」「auto」 | CLEAR/UNCLEAR 질문 라운드를 생략하고 정책대로 진행 |
 | **항상 질문** | 파괴적 작업, 보안·비밀, 비용(SDK 호출 등), 되돌릴 수 없음 | 관련 결정을 **모아서 한 번** 질문(러너 exit 20과 연동) |
 
-파괴적·보안·비용·되돌릴 수 없음 예: `git push --force`, 시크릿 커밋, 프로덕션 DB 마이그레이션, 대량 파일 삭제, SDK 파이프라인 첫 실행 전 비용 확인.
+파괴적·보안·비용·되돌릴 수 없음 예: `git push --force`, 시크릿 커밋, 프로덕션 DB 마이그레이션, 대량 파일 삭제, SDK 파이프라인 첫 실행 전 비용 확인(이후 plan-review·tasker·worker·reviewer·tester까지 LLM 호출이 추가될 수 있음).
 
 ## 알림 형식 (한 줄)
 
@@ -49,7 +49,7 @@
 ## 진입 후 흐름 (요약)
 
 1. 필요 시 explore → PLAN 게이트(grilling, 막힌 질문).
-2. PLAN 승인·게이트 통과 후 `node scripts/run-pipeline.mjs <slug> [--auto]` 실행(아래).
+2. PLAN 승인·게이트 통과 후 `node scripts/run-pipeline.mjs <slug> [--auto]` 실행(아래). 러너는 **blocked-gate → cost-gate → plan-review(PLAN 비판 검토) → tasker → …** 순으로 진행한다. plan-review는 `plan-reviewer`가 `PLAN-REVIEW-<slug>.md`를 쓰고, 결함 시 planner 자동 수정 1회·재검토 후에도 차단 결함이 남으면 종료코드 **20**으로 멈춘다(아래 「PLAN 비판 검토」).
 3. 커밋은 `/matt-pocock-atomic-wrapup`만. 러너·워커는 커밋하지 않음.
 
 `/matt-pocock-atomic-run`은 **1단계 트리아지를 건너뛰고** 항상 파이프라인 진입으로 간다. 이후 grilling·러너·종료코드는 이 문서와 `references/harness.md`를 따른다.
@@ -74,11 +74,11 @@
 |------|------|------------------|
 | **0** | 완료(tester 통과) | 한국어로 결과 보고, `/matt-pocock-atomic-wrapup` 안내 |
 | **2** | 사용법/전제 오류(PLAN·brief 없음, `--adapter sdk`인데 import 실패 등) | 오류 요약 보고 |
-| **10** | 부모 행동 필요(task-card 카드 또는 cli-delegate 항목) | cli-delegate는 그 항목만 위임 후 `--resume`. task-card는 아래 「task-card와 세션 역할」 |
-| **20** | 사람 게이트(PLAN 막힌 질문, 비용 확인 등) | 질문을 모아 한 번에 묻고 답 반영 후 `--resume` |
-| **30** | 항목 `done` 실패(`막힘:`) | 보고; `--resume` 또는 `/matt-pocock-atomic-execute` |
+| **10** | 부모 행동 필요(bugbot 선행 검토 카드, task-card 역할 카드, 또는 cli-delegate 항목) | `next-card.json`의 `kind === "bugbot"`(또는 `pipeline.json`의 `bugbot.status === "pending"`)이면 아래 「bugbot 카드」를 **먼저** 탄다. cli-delegate는 그 항목만 위임 후 `--resume`. 그 외 task-card는 아래 「task-card와 세션 역할」(plan-reviewer·planner revise 카드 포함) |
+| **20** | 사람 게이트(PLAN 막힌 질문, 비용 확인, **plan-review 차단 결함** 등) | 질문을 모아 한 번에 묻고 답 반영 후 `--resume`. plan-review에서 멈춘 경우 PLAN-REVIEW `## 계획 결함`을 보여 주고 PLAN에 반영하거나 「계획 정제」에 수용 기록 후 `--resume`(자동 수정 1회는 이미 소진된 상태) |
+| **30** | 항목 `done` 실패(`막힘:`) 또는 **plan-review 단계 실패**(PLAN-REVIEW 없음·형식 불량 등) | worker 막힘이면 보고 후 `--resume` 또는 `/matt-pocock-atomic-execute`. plan-review 30이면 `--resume`으로 같은 라운드 재시도 |
 | **40** | 리뷰 재작업 1회 후에도 결함 | 보고 후 멈춤 |
-| **50** | 에이전트 시작 실패(인증·네트워크 등, 1회 재시도 후) | 세션에 `tasker`, `planner`, `worker`, `matt-pocock-atomic-reviewer`가 모두 있으면 `--adapter task-card --resume`. 하나라도 없으면 task-card로 바꾸지 않고 시작 실패를 보고한다 |
+| **50** | 에이전트 시작 실패(인증·네트워크 등, 1회 재시도 후) | 세션에 `tasker`, `planner`, `plan-reviewer`, `worker`, `matt-pocock-atomic-reviewer`가 모두 있으면 `--adapter task-card --resume`. 하나라도 없으면 task-card로 바꾸지 않고 시작 실패를 보고한다 |
 
 에이전트는 떴으나 단계가 실패한 경우는 50이 아니라 해당 단계 실패(worker → 30 + `막힘:` 등)로 처리한다.
 
@@ -86,7 +86,27 @@
 
 종료코드 10이고 `pipeline.json`의 `adapter`가 `task-card`이면 `next-card.json`을 읽는다.
 
-1. 이 세션 `available_subagent_types`에 `tasker`, `planner`, `worker`, `matt-pocock-atomic-reviewer`가 모두 있고, 카드의 `subagent_type`도 그 목록에 있으면 카드 그대로 Task를 실행한 뒤 `--resume`한다.
-2. 네 역할 중 하나라도 없거나 카드의 `subagent_type`이 목록에 없으면 Task를 실행하지 않는다. 없는 `subagent_type`을 다른 역할로 바꾸지 않는다. 같은 슬러그를 `--adapter sdk --resume`로 다시 실행한다.
+1. 이 세션 `available_subagent_types`에 `tasker`, `planner`, `plan-reviewer`, `worker`, `matt-pocock-atomic-reviewer`가 모두 있고, 카드의 `subagent_type`도 그 목록에 있으면 카드 그대로 Task를 실행한 뒤 `--resume`한다.
+2. 다섯 역할 중 하나라도 없거나 카드의 `subagent_type`이 목록에 없으면 Task를 실행하지 않는다. 없는 `subagent_type`을 다른 역할로 바꾸지 않는다. 같은 슬러그를 `--adapter sdk --resume`로 다시 실행한다.
 
 cli-delegate 항목으로 나온 종료코드 10은 이 분기를 타지 않는다. `explore`, `coder`, `reviewer`처럼 다른 타입이 목록에 있어도 빠진 역할을 그 타입으로 대체하지 않는다.
+
+### bugbot 카드
+
+Review 단계 진입마다(초기·재작업 후 재리뷰) 러너가 bugbot 호출 카드를 `next-card.json`에 쓰고 종료코드 **10**으로 멈출 수 있다. `kind === "bugbot"`(또는 `pipeline.json`의 `bugbot.status === "pending"`)이면 **어댑터(sdk/task-card)와 무관하게** 이 분기를 task-card 5역할 검사보다 **먼저** 탄다. task-card의 `tasker`·`planner`·`plan-reviewer`·`worker`·`matt-pocock-atomic-reviewer` 다섯 역할 존재 검사는 bugbot 카드에 적용하지 않는다.
+
+1. `next-card.json`에서 `kind === "bugbot"`(또는 카드 JSON의 `kind: "bugbot"`)인지 확인한다.
+2. 세션 `available_subagent_types`에 `bugbot`이 있으면 Cursor `Task`로 카드 그대로 실행한다. `description`은 `"Bugbot"`, `run_in_background`는 `false`, `prompt`는 카드 원문(3줄: `Full Repository Path:` / `Diff: branch changes` / `Custom Instructions:`)을 바꾸지 않는다. 카드에 `model` 필드는 없다.
+3. 성공 시 bugbot 출력을 카드의 `findingsPath`(보통 `~/.matt-pocock-workflow/runs/{shortRepo}/{slug}/bugbot-findings.md`)에 저장한다. 파일 맨 위에 `# Bugbot findings — <slug> pass <n>` 헤더를 두고 그 아래에 원문을 붙인다.
+4. `node scripts/run-pipeline.mjs <slug> --resume`(또는 동일 슬러그 `--resume`)으로 이어간다. 러너는 findings가 있으면 `matt-pocock-atomic-reviewer`를 띄우며 프롬프트에 `Bugbot findings: <path>`를 포함한다.
+5. bugbot Task가 실패하면 **1회** 재시도한다. 그래도 실패하거나 세션에 `bugbot` 타입이 없으면 `findingsPath`에 실패 마커 파일을 쓴다: 첫 줄 `# BUGBOT_FAILED`, 다음 줄 `reason:`, `attempts:`(예: `reason: bugbot unavailable`, `attempts: 2`). 그다음 `--resume`한다. **재시도 후에도 bugbot이 실패했다는 이유만으로 파이프라인을 멈추지 않는다.** reviewer는 `BUGBOT_FAILED`를 트리아지 입력으로만 처리하고 Standards/Spec 검증은 계속한다.
+
+### PLAN 비판 검토 (plan-review)
+
+cost-gate 통과 직후·tasker 전에 러너가 **항상** `plan-reviewer`를 실행한다(SDK 기본, task-card면 종료코드 10 카드). 산출물은 docs dir의 `PLAN-REVIEW-<slug>.md`이며 **`## 계획 결함`**만 차단한다(`## 개선 제안`은 비차단).
+
+1. **`## 계획 결함` 없음** — tasker로 진행한다.
+2. **결함 + 자동 수정 미사용** — planner에게 revise 프롬프트(`Revise PLAN for slug …`)로 PLAN 1회 수정 → plan-reviewer 재검토.
+3. **재검토 후에도 차단 결함** — 종료코드 **20**. 부모는 PLAN-REVIEW `## 계획 결함`을 사용자에게 보여 주고, PLAN에 고치거나 「계획 정제」에 수용·`## 수용된 위험`으로 기록한 뒤 `--resume`(이때 자동 수정 1회는 다시 하지 않음).
+4. **PLAN-REVIEW 없음·`## 계획 결함` 섹션 없음** — fail-closed로 종료코드 **30**. `--resume`으로 같은 라운드를 재시도한다.
+5. **exit 0 보고** — `pipeline.json`의 `state.planReview.revised`가 true이면 최종 보고에 **「PLAN이 자동 수정됨(승인본: `<runs>/.../plan-review/PLAN-<slug>.approved.md`)」**을 반드시 적는다.

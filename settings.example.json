@@ -13,6 +13,10 @@
         "model": "YOUR_PLAN_MODEL",
         "fallbackModels": ["YOUR_PLAN_FALLBACK_MODEL"]
       },
+      "plan-reviewer": {
+        "model": "YOUR_PLAN_REVIEW_MODEL",
+        "fallbackModels": ["YOUR_PLAN_REVIEW_FALLBACK_MODEL"]
+      },
       "tasker": {
         "model": "YOUR_TASK_MODEL",
         "fallbackModels": ["YOUR_TASK_FALLBACK_MODEL"]

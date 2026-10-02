@@ -3,10 +3,13 @@ import {
   writeFileSync,
   mkdirSync,
   existsSync,
+  appendFileSync,
 } from "node:fs";
 import { join } from "node:path";
 import { getWorkflowPaths } from "../work-status.mjs";
 import { getRole } from "./roles.mjs";
+import { bugbotGate } from "./bugbot.mjs";
+import { planReviewGate, planReviewPath } from "./plan-review.mjs";
 
 const CLI_DELEGATE_WORKERS = new Set(["agy", "pi", "opencode", "codex", "claude"]);
 
@@ -305,7 +308,7 @@ export async function runPipeline(opts) {
       return { exitCode: 20, state };
     }
     if (flags.auto) state.costAck = true;
-    state.cursor = { phase: "tasker" };
+    state.cursor = { phase: "plan-review" };
     saveState(paths, state, opts);
     await syncAfter({ statusSync }, slug);
   }
@@ -317,13 +320,61 @@ export async function runPipeline(opts) {
     cursorPhase === "cost-gate" &&
     state.costAck
   ) {
-    state.cursor = { phase: "tasker" };
-    cursorPhase = "tasker";
+    state.cursor = { phase: "plan-review" };
+    cursorPhase = "plan-review";
     saveState(paths, state, opts);
   }
 
   if (cursorPhase === "tasker" || (!flags.resume && cursorPhase === "cost-gate")) {
     cursorPhase = state.cursor?.phase;
+  }
+
+  const planReviewFilePath = planReviewPath(paths.docsDir, slug);
+
+  function appendPipelineLog(line) {
+    mkdirSync(paths.runsDir, { recursive: true });
+    appendFileSync(join(paths.runsDir, "pipeline.log"), `${line}\n`);
+  }
+
+  if (cursorPhase === "plan-review" || state.cursor?.phase === "plan-review") {
+    const gateResult = await planReviewGate({
+      planReview: state.planReview ?? {},
+      slug,
+      repoRoot,
+      planPath,
+      planReviewPath: planReviewFilePath,
+      runsDir: paths.runsDir,
+      runRole: (role, prompt) => runRoleStep(role, prompt, "plan-review"),
+      isBlocked: planHasBlockedQuestions,
+      save: (pr) => {
+        state.planReview = pr;
+        saveState(paths, state, opts);
+      },
+      appendLog: appendPipelineLog,
+    });
+    state.planReview = gateResult.planReview;
+    saveState(paths, state, opts);
+
+    if (gateResult.outcome === "passed") {
+      state.cursor = { phase: "tasker" };
+      saveState(paths, state, opts);
+      await syncAfter({ statusSync }, slug);
+      cursorPhase = "tasker";
+    } else if (gateResult.outcome === "parent") {
+      await syncAfter({ statusSync }, slug);
+      return { exitCode: 10, state };
+    } else if (gateResult.outcome === "human") {
+      state.cursor = { phase: "plan-review" };
+      saveState(paths, state, opts);
+      await syncAfter({ statusSync }, slug);
+      return { exitCode: 20, state };
+    } else if (gateResult.outcome === "failed") {
+      await syncAfter({ statusSync }, slug);
+      return { exitCode: 30, state };
+    } else if (gateResult.outcome === "startup") {
+      await syncAfter({ statusSync }, slug);
+      return { exitCode: 50, state };
+    }
   }
 
   if (cursorPhase === "tasker") {
@@ -420,7 +471,33 @@ export async function runPipeline(opts) {
   }
 
   if (state.cursor?.phase === "reviewer" || cursorPhase === "reviewer") {
-    const rr = await runRoleStep("reviewer", `Review slug ${slug}`, "reviewer");
+    const reviewPass = state.reworkUsed ? 2 : 1;
+    const gate = bugbotGate({
+      bugbot: state.bugbot ?? {},
+      pass: reviewPass,
+      runsDir: paths.runsDir,
+      repoRoot,
+      slug,
+      planPath,
+      tasksPath,
+    });
+    state.bugbot = gate.bugbot;
+
+    if (gate.status === "pending") {
+      state.cursor = { phase: "reviewer" };
+      saveState(paths, state, opts);
+      await syncAfter({ statusSync }, slug);
+      return { exitCode: 10, state };
+    }
+
+    let reviewerPrompt = state.reworkUsed
+      ? `Review slug ${slug} after rework\nBugbot findings: ${gate.findingsPath}`
+      : `Review slug ${slug}\nBugbot findings: ${gate.findingsPath}`;
+    if (gate.failed) {
+      reviewerPrompt += ` (BUGBOT_FAILED: proceed without bugbot)`;
+    }
+
+    const rr = await runRoleStep("reviewer", reviewerPrompt, "reviewer");
     await syncAfter({ statusSync }, slug);
     if (!rr.ok) {
       if (rr.exitCode === 10) return { exitCode: 10, state };
@@ -435,8 +512,8 @@ export async function runPipeline(opts) {
         const ids = defectTaskIds(reviewText);
         let tasksText = readFileSync(tasksPath, "utf8");
         if (ids.length === 0) {
-          tasks = parseTasksMarkdown(tasksText);
-          for (const t of tasks) {
+          const allTasks = parseTasksMarkdown(tasksText);
+          for (const t of allTasks) {
             tasksText = setTaskChecked(tasksText, t.id, false);
           }
         } else {
@@ -493,21 +570,27 @@ export async function runPipeline(opts) {
           await syncAfter({ statusSync }, slug);
         }
 
-        const rr2 = await runRoleStep("reviewer", `Review slug ${slug} after rework`, "reviewer");
+        state.cursor = { phase: "reviewer" };
+        saveState(paths, state, opts);
+
+        const gateAfterRework = bugbotGate({
+          bugbot: state.bugbot ?? {},
+          pass: 2,
+          runsDir: paths.runsDir,
+          repoRoot,
+          slug,
+          planPath,
+          tasksPath,
+        });
+        state.bugbot = gateAfterRework.bugbot;
+        state.cursor = { phase: "reviewer" };
+        saveState(paths, state, opts);
         await syncAfter({ statusSync }, slug);
-        if (!rr2.ok) {
-          if (rr2.exitCode === 50) return { exitCode: 50, state };
-          return { exitCode: 30, state };
-        }
-        reviewText = existsSync(reviewPath) ? readFileSync(reviewPath, "utf8") : "";
-        if (reviewHasDefects(reviewText)) {
-          state.cursor = { phase: "reviewer" };
-          saveState(paths, state, opts);
-          return { exitCode: 40, state };
-        }
-      } else {
-        return { exitCode: 40, state };
+        return { exitCode: 10, state };
       }
+      state.cursor = { phase: "reviewer" };
+      saveState(paths, state, opts);
+      return { exitCode: 40, state };
     }
 
     state.cursor = { phase: "tester" };

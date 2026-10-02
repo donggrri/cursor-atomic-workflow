@@ -40,6 +40,7 @@ const FORBIDDEN_HARNESS_PHRASES = [
 const EXPECTED_ROLE_KEYS = [
   "explorer",
   "planner",
+  "plan-reviewer",
   "tasker",
   "worker",
   "reviewer",
@@ -90,7 +91,7 @@ function setAgentFrontmatterModel(filePath, model) {
   writeFileSync(filePath, next, "utf8");
 }
 
-test("getRole returns all seven pipeline roles and throws for unknown keys", () => {
+test("getRole returns all eight pipeline roles and throws for unknown keys", () => {
   assert.deepEqual(roleNames().sort(), [...EXPECTED_ROLE_KEYS].sort());
   for (const name of EXPECTED_ROLE_KEYS) {
     const role = getRole(name);
@@ -119,6 +120,13 @@ test("reviewer and worker task models use different model families", () => {
   assert.notEqual(
     modelFamily(ROLES.reviewer.taskModel),
     modelFamily(ROLES.worker.taskModel),
+  );
+});
+
+test("plan-reviewer and planner task models use different model families", () => {
+  assert.notEqual(
+    modelFamily(ROLES["plan-reviewer"].taskModel),
+    modelFamily(ROLES.planner.taskModel),
   );
 });
 

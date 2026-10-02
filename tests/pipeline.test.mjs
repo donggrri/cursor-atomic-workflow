@@ -46,6 +46,14 @@ import { tmpdir } from "node:os";
 
 import { getWorkflowPaths } from "../scripts/work-status.mjs";
 import { runPipeline } from "../scripts/lib/pipeline.mjs";
+import {
+  BUGBOT_FAILED_MARKER,
+  bugbotFindingsPath,
+} from "../scripts/lib/bugbot.mjs";
+import {
+  PLAN_REVIEW_DEFECTS_HEADING,
+  planReviewPath,
+} from "../scripts/lib/plan-review.mjs";
 import { resolvePipelineAdapter } from "../scripts/run-pipeline.mjs";
 import { createSdkAdapter, loadSdk } from "../scripts/lib/adapters/sdk.mjs";
 import { createTaskCardAdapter } from "../scripts/lib/adapters/task-card.mjs";
@@ -162,27 +170,133 @@ async function withHome(fn) {
   }
 }
 
+/**
+ * Simulates parent handling exit 10 bugbot cards: writes findings and resumes.
+ * Non-bugbot exit 10 (e.g. task-card tasker) returns immediately unchanged.
+ *
+ * @param {Parameters<typeof runPipeline>[0]} opts
+ * @param {{ findingsContent?: string | ((card: object) => string) }} [sim]
+ */
+async function runPipelineWithBugbotParent(opts, sim = {}) {
+  const maxLoops = 24;
+  let merged = opts;
+  for (let i = 0; i < maxLoops; i += 1) {
+    const result = await runPipeline(merged);
+    if (result.exitCode !== 10) {
+      return result;
+    }
+    const { runsDir } = getWorkflowPaths(opts.repoRoot, opts.slug);
+    const cardPath = join(runsDir, "next-card.json");
+    if (!existsSync(cardPath)) {
+      return result;
+    }
+    const card = JSON.parse(readFileSync(cardPath, "utf8"));
+    if (card.kind !== "bugbot") {
+      return result;
+    }
+    const findingsPath = card.findingsPath ?? bugbotFindingsPath(runsDir);
+    mkdirSync(runsDir, { recursive: true });
+    let content;
+    if (typeof sim.findingsContent === "function") {
+      content = sim.findingsContent(card);
+    } else if (sim.findingsContent !== undefined) {
+      content = sim.findingsContent;
+    } else {
+      const pass = card.pass ?? 1;
+      content = `# Bugbot findings — ${opts.slug} pass ${pass}\n\n(no issues)\n`;
+    }
+    writeFileSync(findingsPath, content, "utf8");
+    merged = {
+      ...opts,
+      flags: { ...opts.flags, resume: true },
+    };
+  }
+  throw new Error("runPipelineWithBugbotParent: exceeded bugbot resume loops");
+}
+
+function defaultCleanFindings(slug, pass) {
+  return `# Bugbot findings — ${slug} pass ${pass}\n\n(no issues)\n`;
+}
+
+function planReviewMd(defectsBody = "없음") {
+  return `# PLAN-REVIEW: pipe
+
+${PLAN_REVIEW_DEFECTS_HEADING}
+
+${defectsBody}
+
+## 개선 제안
+
+(none)
+
+## 수용된 위험
+
+(none)
+`;
+}
+
+/**
+ * Writes PLAN-REVIEW when plan-reviewer (and optional planner hook) runs.
+ * @param {object} adapter
+ * @param {{ docsDir: string }} paths
+ * @param {{
+ *   planReviewBody?: string | ((round: number) => string),
+ *   onPlanner?: (ctx: object, paths: { docsDir: string }) => void | Promise<void>,
+ * }} [opts]
+ */
+function adapterWithPlanReview(adapter, paths, opts = {}) {
+  let reviewRound = 0;
+  return {
+    ...adapter,
+    mode: adapter.mode,
+    async runRole(ctx) {
+      const { role } = ctx;
+      if (role === "plan-reviewer") {
+        reviewRound += 1;
+        let body = "없음";
+        if (typeof opts.planReviewBody === "function") {
+          body = opts.planReviewBody(reviewRound);
+        } else if (opts.planReviewBody !== undefined) {
+          body = opts.planReviewBody;
+        }
+        writeFileSync(
+          planReviewPath(paths.docsDir, SLUG),
+          planReviewMd(body),
+          "utf8"
+        );
+      }
+      if (role === "planner" && opts.onPlanner) {
+        await opts.onPlanner(ctx, paths);
+      }
+      return adapter.runRole(ctx);
+    },
+  };
+}
+
 test("1 정상 완주 — exit 0, TASKS [x], statusSync, pipeline.json", async () => {
   await withHome(async (home) => {
     const { repoRoot, paths } = createFixture(home);
     const syncCalls = [];
     let reviewerPass = 0;
 
-    const adapter = {
-      async runRole({ role }) {
-        if (role === "reviewer") {
-          reviewerPass += 1;
-          writeFileSync(
-            join(paths.docsDir, `REVIEW-${SLUG}.md`),
-            reviewMd("없음"),
-            "utf8"
-          );
-        }
-        return { ok: true, summary: `${role} ok` };
+    const adapter = adapterWithPlanReview(
+      {
+        async runRole({ role }) {
+          if (role === "reviewer") {
+            reviewerPass += 1;
+            writeFileSync(
+              join(paths.docsDir, `REVIEW-${SLUG}.md`),
+              reviewMd("없음"),
+              "utf8"
+            );
+          }
+          return { ok: true, summary: `${role} ok` };
+        },
       },
-    };
+      paths
+    );
 
-    const result = await runPipeline(
+    const result = await runPipelineWithBugbotParent(
       pipelineOpts(repoRoot, home, {
         flags: { auto: true, resume: false, dryRun: false },
         adapter,
@@ -225,18 +339,21 @@ test("2 done 실패 — exit 30, 막힘 on T1, preserve [x], skip T2", async () 
   - worker: worker
   - done: \`true\`
 `;
-    const { repoRoot } = createFixture(home, { tasksContent });
+    const { repoRoot, paths } = createFixture(home, { tasksContent });
     const roles = [];
 
     const result = await runPipeline(
       pipelineOpts(repoRoot, home, {
         flags: { auto: true, resume: false, dryRun: false },
-        adapter: {
-          async runRole({ role }) {
-            roles.push(role);
-            return { ok: true, summary: "ok" };
+        adapter: adapterWithPlanReview(
+          {
+            async runRole({ role }) {
+              roles.push(role);
+              return { ok: true, summary: "ok" };
+            },
           },
-        },
+          paths
+        ),
         runDone: async ({ taskId }) => {
           if (taskId === "T1") return { ok: false, message: "done command failed" };
           return { ok: true };
@@ -263,18 +380,21 @@ test("3 리뷰 재작업 1회 후에도 결함 — exit 40, reviewer 2회만", a
     });
     let reviewerCalls = 0;
 
-    const adapter = {
-      async runRole({ role }) {
-        if (role === "reviewer") {
-          reviewerCalls += 1;
-          const body = reviewerCalls === 1 ? "- spec gap in T1" : "- still broken";
-          writeFileSync(join(paths.docsDir, `REVIEW-${SLUG}.md`), reviewMd(body), "utf8");
-        }
-        return { ok: true, summary: `${role} ok` };
+    const adapter = adapterWithPlanReview(
+      {
+        async runRole({ role }) {
+          if (role === "reviewer") {
+            reviewerCalls += 1;
+            const body = reviewerCalls === 1 ? "- spec gap in T1" : "- still broken";
+            writeFileSync(join(paths.docsDir, `REVIEW-${SLUG}.md`), reviewMd(body), "utf8");
+          }
+          return { ok: true, summary: `${role} ok` };
+        },
       },
-    };
+      paths
+    );
 
-    const result = await runPipeline(
+    const result = await runPipelineWithBugbotParent(
       pipelineOpts(repoRoot, home, {
         flags: { auto: true, resume: false, dryRun: false },
         adapter,
@@ -350,19 +470,22 @@ test("6 비용 게이트 — exit 20 then auto or costAck+resume", async () => {
     const { repoRoot, paths } = createFixture(home, { tasksContent });
 
     let adapterCalls = 0;
-    const adapter = {
-      async runRole({ role }) {
-        adapterCalls += 1;
-        if (role === "reviewer") {
-          writeFileSync(
-            join(paths.docsDir, `REVIEW-${SLUG}.md`),
-            reviewMd("없음"),
-            "utf8"
-          );
-        }
-        return { ok: true, summary: "ok" };
+    const adapter = adapterWithPlanReview(
+      {
+        async runRole({ role }) {
+          adapterCalls += 1;
+          if (role === "reviewer") {
+            writeFileSync(
+              join(paths.docsDir, `REVIEW-${SLUG}.md`),
+              reviewMd("없음"),
+              "utf8"
+            );
+          }
+          return { ok: true, summary: "ok" };
+        },
       },
-    };
+      paths
+    );
 
     const base = {
       adapter,
@@ -377,7 +500,7 @@ test("6 비용 게이트 — exit 20 then auto or costAck+resume", async () => {
     assert.equal(adapterCalls, 0);
 
     adapterCalls = 0;
-    const autoRun = await runPipeline(
+    const autoRun = await runPipelineWithBugbotParent(
       pipelineOpts(repoRoot, home, {
         ...base,
         flags: { auto: true, resume: false, dryRun: false },
@@ -394,7 +517,7 @@ test("6 비용 게이트 — exit 20 then auto or costAck+resume", async () => {
       "utf8"
     );
 
-    const resumed = await runPipeline(
+    const resumed = await runPipelineWithBugbotParent(
       pipelineOpts(repoRoot, home, {
         ...base,
         flags: { auto: false, resume: true, dryRun: false },
@@ -427,12 +550,15 @@ test("7 cli-delegate 항목 — worker agy → exit 10, 이후 미실행", async
     const result = await runPipeline(
       pipelineOpts(repoRoot, home, {
         flags: { auto: true, resume: false, dryRun: false },
-        adapter: {
-          async runRole({ role }) {
-            roles.push(role);
-            return { ok: true, summary: "ok" };
+        adapter: adapterWithPlanReview(
+          {
+            async runRole({ role }) {
+              roles.push(role);
+              return { ok: true, summary: "ok" };
+            },
           },
-        },
+          paths
+        ),
         runDone: async () => ({ ok: true }),
         statusSync: async () => {},
       })
@@ -461,25 +587,28 @@ test("8 resume 커서 복원 — T1 스kip, T2부터", async () => {
     const workerTasks = [];
     let reviewerRan = false;
 
-    const result = await runPipeline(
+    const result = await runPipelineWithBugbotParent(
       pipelineOpts(repoRoot, home, {
         flags: { auto: true, resume: true, dryRun: false },
-        adapter: {
-          async runRole({ role, prompt }) {
-            if (role === "worker") {
-              workerTasks.push(prompt?.includes("T2") ? "T2" : "other");
-            }
-            if (role === "reviewer") {
-              reviewerRan = true;
-              writeFileSync(
-                join(paths.docsDir, `REVIEW-${SLUG}.md`),
-                reviewMd("없음"),
-                "utf8"
-              );
-            }
-            return { ok: true, summary: "ok" };
+        adapter: adapterWithPlanReview(
+          {
+            async runRole({ role, prompt }) {
+              if (role === "worker") {
+                workerTasks.push(prompt?.includes("T2") ? "T2" : "other");
+              }
+              if (role === "reviewer") {
+                reviewerRan = true;
+                writeFileSync(
+                  join(paths.docsDir, `REVIEW-${SLUG}.md`),
+                  reviewMd("없음"),
+                  "utf8"
+                );
+              }
+              return { ok: true, summary: "ok" };
+            },
           },
-        },
+          paths
+        ),
         runDone: async ({ taskId }) => {
           workerTasks.push(`done:${taskId}`);
           return { ok: true };
@@ -535,9 +664,59 @@ test("9 task-card 어댑터 — exit 10 + next-card.json, resume after TASKS 산
     const cardPath = join(paths.runsDir, "next-card.json");
     assert.ok(existsSync(cardPath));
     const card = JSON.parse(readFileSync(cardPath, "utf8"));
-    assert.equal(card.subagent_type, "tasker");
+    assert.equal(card.subagent_type, "plan-reviewer");
     assert.equal(card.model, "composer-2.5");
     assert.equal(card.run_in_background, true);
+
+    writeFileSync(
+      planReviewPath(paths.docsDir, SLUG),
+      planReviewMd("없음"),
+      "utf8"
+    );
+
+    let reviewerCalls = 0;
+    let taskerCalls = 0;
+    const resumeAdapter = {
+      mode: "task-card",
+      async runRole({ role }) {
+        if (role === "reviewer") {
+          reviewerCalls += 1;
+          writeFileSync(
+            join(paths.docsDir, `REVIEW-${SLUG}.md`),
+            reviewMd("없음"),
+            "utf8"
+          );
+          return { ok: true, summary: "review ok" };
+        }
+        if (role === "tasker") {
+          taskerCalls += 1;
+          const taskCard = {
+            subagent_type: "tasker",
+            model: "composer-2.5",
+            run_in_background: true,
+            prompt: "run tasker",
+          };
+          writeFileSync(
+            join(paths.runsDir, "next-card.json"),
+            JSON.stringify(taskCard, null, 2),
+            "utf8"
+          );
+          return { ok: false, kind: "run", message: "task-card pending parent" };
+        }
+        return { ok: true, summary: `${role} ok` };
+      },
+    };
+
+    const afterPlanReview = await runPipeline(
+      pipelineOpts(repoRoot, home, {
+        flags: { auto: true, resume: true, dryRun: false },
+        adapter: resumeAdapter,
+        runDone: async () => ({ ok: true }),
+        statusSync: async () => {},
+      })
+    );
+    assert.equal(afterPlanReview.exitCode, 10);
+    assert.equal(taskerCalls, 1);
 
     writeFileSync(
       join(paths.runsDir, "pipeline.json"),
@@ -546,6 +725,7 @@ test("9 task-card 어댑터 — exit 10 + next-card.json, resume after TASKS 산
           cursor: { phase: "tasker", role: "tasker" },
           costAck: true,
           adapter: "task-card",
+          planReview: { stage: "passed", round: 1, revised: false, awaiting: false },
         },
         null,
         2
@@ -553,8 +733,7 @@ test("9 task-card 어댑터 — exit 10 + next-card.json, resume after TASKS 산
       "utf8"
     );
 
-    let reviewerCalls = 0;
-    const resumeAdapter = {
+    const resumeAdapter2 = {
       mode: "task-card",
       async runRole({ role }) {
         if (role === "reviewer") {
@@ -573,10 +752,10 @@ test("9 task-card 어댑터 — exit 10 + next-card.json, resume after TASKS 산
       },
     };
 
-    const second = await runPipeline(
+    const second = await runPipelineWithBugbotParent(
       pipelineOpts(repoRoot, home, {
         flags: { auto: true, resume: true, dryRun: false },
-        adapter: resumeAdapter,
+        adapter: resumeAdapter2,
         runDone: async () => ({ ok: true }),
         statusSync: async () => {},
       })
@@ -586,6 +765,529 @@ test("9 task-card 어댑터 — exit 10 + next-card.json, resume after TASKS 산
     assert.ok(taskLineChecked(readTasks(home, repoRoot), "T1"));
     assert.ok(taskLineChecked(readTasks(home, repoRoot), "T2"));
     assert.ok(reviewerCalls >= 1);
+  });
+});
+
+test("(p1) plan-review 통과 — tasker 진행 exit 0", async () => {
+  await withHome(async (home) => {
+    const { repoRoot, paths } = createFixture(home);
+    const roles = [];
+
+    const result = await runPipelineWithBugbotParent(
+      pipelineOpts(repoRoot, home, {
+        flags: { auto: true, resume: false, dryRun: false },
+        adapter: adapterWithPlanReview(
+          {
+            async runRole({ role }) {
+              roles.push(role);
+              if (role === "reviewer") {
+                writeFileSync(
+                  join(paths.docsDir, `REVIEW-${SLUG}.md`),
+                  reviewMd("없음"),
+                  "utf8"
+                );
+              }
+              return { ok: true, summary: "ok" };
+            },
+          },
+          paths
+        ),
+        runDone: async () => ({ ok: true }),
+        statusSync: async () => {},
+      })
+    );
+
+    assert.equal(result.exitCode, 0);
+    assert.ok(roles.includes("plan-reviewer"));
+    assert.ok(roles.includes("tasker"));
+    assert.equal(result.state.cursor?.phase, "complete");
+  });
+});
+
+test("(p2) plan-review 결함 — planner 1회 — 재검토 통과 exit 0 + auto-revised 로그", async () => {
+  await withHome(async (home) => {
+    const { repoRoot, paths } = createFixture(home);
+
+    const result = await runPipelineWithBugbotParent(
+      pipelineOpts(repoRoot, home, {
+        flags: { auto: true, resume: false, dryRun: false },
+        adapter: adapterWithPlanReview(
+          {
+            async runRole({ role }) {
+              if (role === "reviewer") {
+                writeFileSync(
+                  join(paths.docsDir, `REVIEW-${SLUG}.md`),
+                  reviewMd("없음"),
+                  "utf8"
+                );
+              }
+              return { ok: true, summary: "ok" };
+            },
+          },
+          paths,
+          {
+            planReviewBody: (round) => (round === 1 ? "- [설계] gap" : "없음"),
+            onPlanner: async (_ctx, p) => {
+              writeFileSync(
+                join(p.docsDir, `PLAN-${SLUG}.md`),
+                `${planMd("없음")}\n## 자동 수정 기록\n\nfixed\n`,
+                "utf8"
+              );
+            },
+          }
+        ),
+        runDone: async () => ({ ok: true }),
+        statusSync: async () => {},
+      })
+    );
+
+    assert.equal(result.exitCode, 0);
+    const log = readFileSync(join(paths.runsDir, "pipeline.log"), "utf8");
+    assert.match(log, /PLAN auto-revised by planner/);
+    assert.equal(result.state.planReview?.revised, true);
+  });
+});
+
+test("(p3) 재검토 후 결함 — exit 20, tasker 미호출, human stage", async () => {
+  await withHome(async (home) => {
+    const { repoRoot, paths } = createFixture(home);
+    const roles = [];
+
+    const result = await runPipeline(
+      pipelineOpts(repoRoot, home, {
+        flags: { auto: true, resume: false, dryRun: false },
+        adapter: adapterWithPlanReview(
+          {
+            async runRole({ role }) {
+              roles.push(role);
+              return { ok: true, summary: "ok" };
+            },
+          },
+          paths,
+          {
+            planReviewBody: "- [설계] still bad",
+            onPlanner: async (_ctx, p) => {
+              writeFileSync(
+                join(p.docsDir, `PLAN-${SLUG}.md`),
+                `${planMd("없음")}\n## 자동 수정 기록\n\nattempt\n`,
+                "utf8"
+              );
+            },
+          }
+        ),
+        runDone: async () => ({ ok: true }),
+        statusSync: async () => {},
+      })
+    );
+
+    assert.equal(result.exitCode, 20);
+    assert.ok(!roles.includes("tasker"));
+    assert.equal(result.state.planReview?.stage, "human");
+    assert.equal(result.state.cursor?.phase, "plan-review");
+  });
+});
+
+test("(p4) PLAN-REVIEW 없음 — exit 30", async () => {
+  await withHome(async (home) => {
+    const { repoRoot, paths } = createFixture(home);
+
+    const result = await runPipeline(
+      pipelineOpts(repoRoot, home, {
+        flags: { auto: true, resume: false, dryRun: false },
+        adapter: {
+          async runRole({ role }) {
+            if (role === "plan-reviewer") {
+              return { ok: true, summary: "forgot artifact" };
+            }
+            return { ok: true, summary: "ok" };
+          },
+        },
+        runDone: async () => ({ ok: true }),
+        statusSync: async () => {},
+      })
+    );
+
+    assert.equal(result.exitCode, 30);
+    const log = readFileSync(join(paths.runsDir, "pipeline.log"), "utf8");
+    assert.match(log, /PLAN-REVIEW missing or malformed \(exit 30\)/);
+  });
+});
+
+test("(p5) task-card plan-reviewer exit 10 — resume에서 카드 재발급 없이 진행", async () => {
+  await withHome(async (home) => {
+    const { repoRoot, paths } = createFixture(home);
+    let planReviewerCalls = 0;
+
+    const taskCardAdapter = {
+      mode: "task-card",
+      async runRole({ role }) {
+        if (role === "plan-reviewer") {
+          planReviewerCalls += 1;
+          const card = {
+            subagent_type: "plan-reviewer",
+            model: "composer-2.5",
+            run_in_background: true,
+            prompt: "critique plan",
+          };
+          writeFileSync(
+            join(paths.runsDir, "next-card.json"),
+            JSON.stringify(card, null, 2),
+            "utf8"
+          );
+          return { ok: false, kind: "run", message: "task-card pending parent" };
+        }
+        return { ok: true, summary: "ok" };
+      },
+    };
+
+    const first = await runPipeline(
+      pipelineOpts(repoRoot, home, {
+        flags: { auto: true, resume: false, dryRun: false },
+        adapter: taskCardAdapter,
+        runDone: async () => ({ ok: true }),
+        statusSync: async () => {},
+      })
+    );
+    assert.equal(first.exitCode, 10);
+    assert.equal(planReviewerCalls, 1);
+
+    writeFileSync(
+      planReviewPath(paths.docsDir, SLUG),
+      planReviewMd("없음"),
+      "utf8"
+    );
+
+    planReviewerCalls = 0;
+    let taskerCalled = false;
+    const resumeAdapter = {
+      mode: "task-card",
+      async runRole({ role }) {
+        if (role === "plan-reviewer") {
+          planReviewerCalls += 1;
+        }
+        if (role === "tasker") {
+          taskerCalled = true;
+          return { ok: true, summary: "tasker ok" };
+        }
+        if (role === "reviewer") {
+          writeFileSync(
+            join(paths.docsDir, `REVIEW-${SLUG}.md`),
+            reviewMd("없음"),
+            "utf8"
+          );
+        }
+        return { ok: true, summary: "ok" };
+      },
+    };
+
+    const second = await runPipelineWithBugbotParent(
+      pipelineOpts(repoRoot, home, {
+        flags: { auto: true, resume: true, dryRun: false },
+        adapter: resumeAdapter,
+        runDone: async () => ({ ok: true }),
+        statusSync: async () => {},
+      })
+    );
+
+    assert.equal(second.exitCode, 0);
+    assert.equal(planReviewerCalls, 0, "awaiting resume must not re-issue plan-reviewer");
+    assert.equal(taskerCalled, true);
+  });
+});
+
+test("(a) bugbot gate — sdk·task-card reviewer 진입 exit 10, bugbot 카드, reviewer 미호출", async () => {
+  for (const adapterKind of ["sdk", "task-card"]) {
+    await withHome(async (home) => {
+      const { repoRoot, paths } = createFixture(home);
+      let reviewerCalls = 0;
+      const baseAdapter =
+        adapterKind === "task-card"
+          ? {
+              mode: "task-card",
+              async runRole({ role }) {
+                if (role === "reviewer") reviewerCalls += 1;
+                return { ok: true, summary: "ok" };
+              },
+            }
+          : {
+              async runRole({ role }) {
+                if (role === "reviewer") reviewerCalls += 1;
+                return { ok: true, summary: "ok" };
+              },
+            };
+      const adapter = adapterWithPlanReview(baseAdapter, paths);
+
+      const result = await runPipeline(
+        pipelineOpts(repoRoot, home, {
+          flags: { auto: true, resume: false, dryRun: false },
+          adapter,
+          runDone: async () => ({ ok: true }),
+          statusSync: async () => {},
+        })
+      );
+
+      assert.equal(result.exitCode, 10, `${adapterKind}: exit 10 at bugbot gate`);
+      assert.equal(reviewerCalls, 0, `${adapterKind}: reviewer not called`);
+      const cardPath = join(paths.runsDir, "next-card.json");
+      assert.ok(existsSync(cardPath), `${adapterKind}: next-card.json exists`);
+      const card = JSON.parse(readFileSync(cardPath, "utf8"));
+      assert.equal(card.kind, "bugbot", `${adapterKind}: bugbot card kind`);
+      assert.equal(card.subagent_type, "bugbot");
+    });
+  }
+});
+
+test("(b) bugbot findings resume — reviewer prompt에 Bugbot findings 경로", async () => {
+  await withHome(async (home) => {
+    const { repoRoot, paths } = createFixture(home);
+    const findingsPath = bugbotFindingsPath(paths.runsDir);
+    const reviewerPrompts = [];
+
+    const adapter = adapterWithPlanReview(
+      {
+        async runRole({ role, prompt }) {
+          if (role === "reviewer") {
+            reviewerPrompts.push(prompt);
+            writeFileSync(
+              join(paths.docsDir, `REVIEW-${SLUG}.md`),
+              reviewMd("없음"),
+              "utf8"
+            );
+          }
+          return { ok: true, summary: "ok" };
+        },
+      },
+      paths
+    );
+
+    const first = await runPipeline(
+      pipelineOpts(repoRoot, home, {
+        flags: { auto: true, resume: false, dryRun: false },
+        adapter,
+        runDone: async () => ({ ok: true }),
+        statusSync: async () => {},
+      })
+    );
+    assert.equal(first.exitCode, 10);
+
+    writeFileSync(findingsPath, defaultCleanFindings(SLUG, 1), "utf8");
+
+    const second = await runPipeline(
+      pipelineOpts(repoRoot, home, {
+        flags: { auto: true, resume: true, dryRun: false },
+        adapter,
+        runDone: async () => ({ ok: true }),
+        statusSync: async () => {},
+      })
+    );
+
+    assert.equal(second.exitCode, 0);
+    assert.ok(reviewerPrompts.length >= 1);
+    assert.match(
+      reviewerPrompts[0],
+      new RegExp(`Bugbot findings: ${findingsPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`)
+    );
+  });
+});
+
+test("(c) BUGBOT_FAILED findings — reviewer 실행 후 exit 0", async () => {
+  await withHome(async (home) => {
+    const { repoRoot, paths } = createFixture(home);
+    let reviewerCalls = 0;
+
+    const adapter = adapterWithPlanReview(
+      {
+        async runRole({ role, prompt }) {
+          if (role === "reviewer") {
+            reviewerCalls += 1;
+            assert.match(prompt, /BUGBOT_FAILED: proceed without bugbot/);
+            writeFileSync(
+              join(paths.docsDir, `REVIEW-${SLUG}.md`),
+              reviewMd("없음"),
+              "utf8"
+            );
+          }
+          return { ok: true, summary: "ok" };
+        },
+      },
+      paths
+    );
+
+    const result = await runPipelineWithBugbotParent(
+      pipelineOpts(repoRoot, home, {
+        flags: { auto: true, resume: false, dryRun: false },
+        adapter,
+        runDone: async () => ({ ok: true }),
+        statusSync: async () => {},
+      }),
+      {
+        findingsContent: `# ${BUGBOT_FAILED_MARKER}\nreason: simulated failure\nattempts: 2\n`,
+      }
+    );
+
+    assert.equal(result.exitCode, 0);
+    assert.equal(reviewerCalls, 1);
+  });
+});
+
+test("(d) rework pass 2 — bugbot pass2 카드, pass1 보관, reviewer 2회, exit 40", async () => {
+  await withHome(async (home) => {
+    const { repoRoot, paths } = createFixture(home, {
+      tasksContent: tasksTwoItems({ t2Checked: false }),
+    });
+    let reviewerCalls = 0;
+    let pass2BugbotCard = null;
+
+    const adapter = adapterWithPlanReview(
+      {
+        async runRole({ role }) {
+          if (role === "reviewer") {
+            reviewerCalls += 1;
+            const body = reviewerCalls === 1 ? "- spec gap in T1" : "- still broken";
+            writeFileSync(join(paths.docsDir, `REVIEW-${SLUG}.md`), reviewMd(body), "utf8");
+          }
+          return { ok: true, summary: `${role} ok` };
+        },
+      },
+      paths
+    );
+
+    const opts = pipelineOpts(repoRoot, home, {
+      flags: { auto: true, resume: false, dryRun: false },
+      adapter,
+      runDone: async () => ({ ok: true }),
+      statusSync: async () => {},
+    });
+
+    let merged = opts;
+    let finalResult = null;
+    for (let i = 0; i < 24; i += 1) {
+      const result = await runPipeline(merged);
+      if (result.exitCode === 10 && existsSync(join(paths.runsDir, "next-card.json"))) {
+        const card = JSON.parse(readFileSync(join(paths.runsDir, "next-card.json"), "utf8"));
+        if (card.kind === "bugbot") {
+          if (card.pass === 2) pass2BugbotCard = card;
+          const pass = card.pass ?? 1;
+          writeFileSync(
+            bugbotFindingsPath(paths.runsDir),
+            defaultCleanFindings(SLUG, pass),
+            "utf8"
+          );
+          merged = { ...opts, flags: { ...opts.flags, resume: true } };
+          continue;
+        }
+      }
+      finalResult = result;
+      break;
+    }
+
+    assert.ok(finalResult, "pipeline finished");
+    assert.equal(finalResult.exitCode, 40);
+    assert.equal(reviewerCalls, 2);
+    assert.ok(
+      existsSync(join(paths.runsDir, "bugbot-findings.pass1.md")),
+      "pass1 findings archived before pass 2 bugbot"
+    );
+    assert.ok(pass2BugbotCard, "pass 2 bugbot card emitted after rework");
+    assert.equal(pass2BugbotCard.pass, 2);
+  });
+});
+
+test("(e) task-card reviewer resume — bugbot ready 상태에서 bugbot 카드 재생성 없음", async () => {
+  await withHome(async (home) => {
+    const { repoRoot, paths } = createFixture(home, {
+      tasksContent: tasksTwoItems({ t1Checked: true, t2Checked: true }),
+      pipelineJson: {
+        costAck: true,
+        adapter: "task-card",
+        reworkUsed: false,
+        cursor: { phase: "reviewer", role: "reviewer" },
+        bugbot: { pass: 1, status: "ready" },
+      },
+    });
+    const findingsPath = bugbotFindingsPath(paths.runsDir);
+    writeFileSync(findingsPath, defaultCleanFindings(SLUG, 1), "utf8");
+
+    const pendingReviewerAdapter = {
+      mode: "task-card",
+      async runRole({ role }) {
+        if (role === "reviewer") {
+          const card = {
+            subagent_type: "reviewer",
+            model: "composer-2.5",
+            run_in_background: true,
+            prompt: "review task-card",
+          };
+          writeFileSync(
+            join(paths.runsDir, "next-card.json"),
+            JSON.stringify(card, null, 2),
+            "utf8"
+          );
+          return { ok: false, kind: "run", message: "task-card pending parent" };
+        }
+        return { ok: true, summary: "ok" };
+      },
+    };
+
+    const first = await runPipeline(
+      pipelineOpts(repoRoot, home, {
+        flags: { auto: true, resume: true, dryRun: false },
+        adapter: pendingReviewerAdapter,
+        runDone: async () => ({ ok: true }),
+        statusSync: async () => {},
+      })
+    );
+    assert.equal(first.exitCode, 10);
+    const cardAfterFirst = JSON.parse(
+      readFileSync(join(paths.runsDir, "next-card.json"), "utf8")
+    );
+    assert.equal(cardAfterFirst.subagent_type, "reviewer");
+    assert.notEqual(cardAfterFirst.kind, "bugbot");
+
+    const logBefore = existsSync(join(paths.runsDir, "pipeline.log"))
+      ? readFileSync(join(paths.runsDir, "pipeline.log"), "utf8")
+      : "";
+
+    let reviewerCalls = 0;
+    const completeAdapter = {
+      mode: "task-card",
+      async runRole({ role, prompt }) {
+        if (role === "reviewer") {
+          reviewerCalls += 1;
+          assert.match(prompt, /Bugbot findings:/);
+          writeFileSync(
+            join(paths.docsDir, `REVIEW-${SLUG}.md`),
+            reviewMd("없음"),
+            "utf8"
+          );
+        }
+        return { ok: true, summary: "ok" };
+      },
+    };
+
+    const second = await runPipeline(
+      pipelineOpts(repoRoot, home, {
+        flags: { auto: true, resume: true, dryRun: false },
+        adapter: completeAdapter,
+        runDone: async () => ({ ok: true }),
+        statusSync: async () => {},
+      })
+    );
+
+    assert.equal(second.exitCode, 0);
+    assert.equal(reviewerCalls, 1);
+    const cardAfterSecond = existsSync(join(paths.runsDir, "next-card.json"))
+      ? JSON.parse(readFileSync(join(paths.runsDir, "next-card.json"), "utf8"))
+      : null;
+    assert.notEqual(cardAfterSecond?.kind, "bugbot");
+    const logAfter = existsSync(join(paths.runsDir, "pipeline.log"))
+      ? readFileSync(join(paths.runsDir, "pipeline.log"), "utf8")
+      : "";
+    assert.equal(
+      (logAfter.match(/bugbot card pending/g) ?? []).length,
+      (logBefore.match(/bugbot card pending/g) ?? []).length,
+      "no extra bugbot card pending log on reviewer resume"
+    );
   });
 });
 

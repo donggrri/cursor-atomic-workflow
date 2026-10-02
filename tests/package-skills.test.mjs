@@ -38,6 +38,7 @@ const requiredSkills = [
 const workflowAgents = {
   explorer: ["matt-pocock-atomic-workflow"],
   planner: ["matt-pocock-atomic-workflow", "codebase-design", "domain-modeling", "grilling", "wayfinder"],
+  "plan-reviewer": ["matt-pocock-atomic-workflow", "codebase-design", "tdd"],
   tasker: ["matt-pocock-atomic-workflow", "to-tickets"],
   worker: ["matt-pocock-atomic-workflow", "tdd"],
   reviewer: ["matt-pocock-atomic-workflow", "code-review"],
@@ -197,6 +198,14 @@ test("planner contract uses correct skills", async () => {
   assert.match(planner, /wayfinder/, "planner must use wayfinder");
   assert.doesNotMatch(planner, /grill-me/, "planner must not rely on grill-me directly");
   assert.match(planner, /brief/, "planner must require planning refinement brief");
+});
+
+test("planner contract supports plan-review revise mode", async () => {
+  const planner = await readFile(join(".cursor", "agents", "planner.md"), "utf8");
+  assert.match(planner, /Revise PLAN/, "planner must document plan-review revise entry prompt");
+  assert.match(planner, /계획 결함/, "planner revise mode must fix only plan defects section");
+  assert.match(planner, /계획 정제/, "planner revise mode must keep settled decisions in 계획 정제");
+  assert.match(planner, /자동 수정 기록/, "planner revise mode must append auto-revision log section");
 });
 
 test("command skills spawn the renamed agents", async () => {
@@ -552,7 +561,108 @@ test("pipeline recovery reviewer agent", async () => {
   assert.match(reviewer, /리뷰 재작업 1회는 정책으로 자동/, "reviewer.md must state review rework is automated by policy");
 });
 
+test("bugbot review parent contract docs", async () => {
+  const routing = await readFile(
+    join(SKILLS, "matt-pocock-atomic-workflow", "references", "routing.md"),
+    "utf8"
+  );
+  const harness = await readFile(
+    join(SKILLS, "matt-pocock-atomic-workflow", "references", "harness.md"),
+    "utf8"
+  );
+  const context = await readFile(
+    join(SKILLS, "matt-pocock-atomic-workflow", "CONTEXT.md"),
+    "utf8"
+  );
+  const reference = await readFile(
+    join(SKILLS, "matt-pocock-atomic-workflow", "reference.md"),
+    "utf8"
+  );
+  const reviewer = await readFile(
+    join(".cursor", "agents", "matt-pocock-atomic-reviewer.md"),
+    "utf8"
+  );
 
+  assert.match(routing, /bugbot/, "routing.md must document bugbot hand-off");
+  assert.match(routing, /BUGBOT_FAILED/, "routing.md must document BUGBOT_FAILED marker");
+  assert.match(routing, /bugbot-findings\.md/, "routing.md must mention bugbot-findings.md");
+
+  assert.match(
+    harness,
+    /Bugbot 선행 검토 카드|subagent_type:\s*"?bugbot"?/,
+    "harness.md must document bugbot pre-review card"
+  );
+  assert.match(
+    harness,
+    /subagent_type:\s*bugbot/,
+    "harness.md must show subagent_type: bugbot example"
+  );
+
+  assert.match(context, /Bugbot 선행 검토/, "CONTEXT.md must define Bugbot 선행 검토");
+
+  assert.match(reviewer, /Bugbot findings/, "reviewer agent must reference Bugbot findings path");
+  assert.match(reviewer, /## Bugbot 트리아지/, "reviewer agent must have ## Bugbot 트리아지 section");
+
+  assert.match(reference, /## Bugbot 트리아지/, "reference.md REVIEW template must include ## Bugbot 트리아지");
+});
+
+test("plan-review parent contract docs", async () => {
+  const routing = await readFile(
+    join(SKILLS, "matt-pocock-atomic-workflow", "references", "routing.md"),
+    "utf8"
+  );
+  const harness = await readFile(
+    join(SKILLS, "matt-pocock-atomic-workflow", "references", "harness.md"),
+    "utf8"
+  );
+  const context = await readFile(
+    join(SKILLS, "matt-pocock-atomic-workflow", "CONTEXT.md"),
+    "utf8"
+  );
+  const reference = await readFile(
+    join(SKILLS, "matt-pocock-atomic-workflow", "reference.md"),
+    "utf8"
+  );
+  const skill = await readFile(skillFile("matt-pocock-atomic-workflow"), "utf8");
+  const models = await readFile(
+    join(SKILLS, "matt-pocock-atomic-workflow", "models.md"),
+    "utf8"
+  );
+  const doctor = await readFile(skillFile("matt-pocock-atomic-doctor"), "utf8");
+  const config = await readFile(skillFile("matt-pocock-atomic-config"), "utf8");
+  const modelsCmd = await readFile(skillFile("matt-pocock-atomic-models"), "utf8");
+  const readme = await readFile("README.md", "utf8");
+  const readmeKr = await readFile("README.kr.md", "utf8");
+
+  assert.match(routing, /plan-review/, "routing.md must document plan-review flow");
+  assert.match(routing, /PLAN 비판 검토/, "routing.md must have PLAN 비판 검토 section");
+  assert.match(routing, /## 계획 결함/, "routing.md must reference blocking defects heading");
+  assert.match(routing, /plan-reviewer/, "routing.md must name plan-reviewer for task-card roles");
+
+  assert.match(harness, /plan-reviewer/, "harness.md must document plan-reviewer");
+  assert.match(harness, /grok-4\.7-high/, "harness.md must document plan-reviewer model");
+
+  assert.match(context, /## PLAN 비판 검토/, "CONTEXT.md must define PLAN 비판 검토");
+  assert.match(context, /## PLAN 자동 수정/, "CONTEXT.md must define PLAN 자동 수정");
+  assert.match(context, /\|\s*PLAN 비판 검토\s*\|/, "CONTEXT summary table must contain PLAN 비판 검토");
+
+  assert.match(reference, /PLAN-REVIEW/, "reference.md must include PLAN-REVIEW template");
+  assert.match(reference, /## 계획 결함/, "reference.md PLAN-REVIEW template must include ## 계획 결함");
+
+  assert.match(skill, /Phase 1\.5/, "SKILL.md must document Phase 1.5");
+  assert.match(skill, /plan-reviewer/, "SKILL.md must mention plan-reviewer in pipeline");
+
+  assert.match(models, /plan-reviewer.*grok-4\.7-high/s, "models.md must list plan-reviewer Task model");
+
+  assert.match(doctor, /plan-reviewer/, "doctor skill must check plan-reviewer session type");
+  assert.match(config, /plan-reviewer/, "config skill must list plan-reviewer agent");
+  assert.match(modelsCmd, /plan-reviewer/, "models command skill must list plan-review stage");
+
+  assert.match(readme, /plan-reviewer/, "README.md must mention plan-reviewer");
+  assert.match(readme, /8 agents/, "README.md must count eight agents");
+  assert.match(readmeKr, /plan-reviewer/, "README.kr.md must mention plan-reviewer");
+  assert.match(readmeKr, /8종/, "README.kr.md must count eight agents");
+});
 
 
 

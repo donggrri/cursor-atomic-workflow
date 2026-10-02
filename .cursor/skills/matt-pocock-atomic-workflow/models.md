@@ -23,6 +23,7 @@ Pi `agentOverrides`와 별도다. Cursor는 에이전트 frontmatter를 호출�
 |---|---|---|
 | explorer | `explorer` | `composer-2.5` |
 | planner | `planner` | `claude-opus-5-5-high` |
+| plan-reviewer | `plan-reviewer` | `grok-4.7-high` |
 | tasker | `tasker` | `composer-2.5` |
 | worker | `worker` | `composer-2.5` |
 | reviewer | `matt-pocock-atomic-reviewer` | `grok-4.7-xhigh` |
@@ -30,6 +31,8 @@ Pi `agentOverrides`와 별도다. Cursor는 에이전트 frontmatter를 호출�
 | cli-delegate | `cli-delegate` | `composer-2.5` |
 
 세션 `available_subagent_models`에 슬러그가 없으면 그 호출은 멈추고 목록을 보고한다. `inherit`로 부모 모델을 쓰지 않는다.
+
+**예외 — bugbot 선행 검토:** 파이프라인 Review 진입 시 `subagent_type: "bugbot"` Task는 위 표·`ROLES`에 없다. 카드에 `model`을 두지 않고 **세션 기본 모델**로 호출한다(`references/harness.md` 「Bugbot 선행 검토 카드」).
 
 ## 단계 기본값
 
@@ -39,6 +42,7 @@ Pi `agentOverrides`와 별도다. Cursor는 에이전트 frontmatter를 호출�
 |---|---|---|---|
 | explore / recon | `explorer` / `scout` | `matt-pocock-atomic-workflow` | `agentOverrides.explorer`, `agentOverrides.scout` |
 | plan | `planner` | `matt-pocock-atomic-workflow`, `codebase-design` | `agentOverrides.planner` |
+| plan-review | `plan-reviewer` | `matt-pocock-atomic-workflow`, `codebase-design`, `tdd` | `agentOverrides.plan-reviewer` |
 | task | `tasker` | `matt-pocock-atomic-workflow`, `to-tickets` | `agentOverrides.tasker` |
 | execute | `worker` | `matt-pocock-atomic-workflow`, `tdd` | `agentOverrides.worker` |
 | review | `reviewer` | `matt-pocock-atomic-workflow`, `code-review` | `agentOverrides.reviewer` |

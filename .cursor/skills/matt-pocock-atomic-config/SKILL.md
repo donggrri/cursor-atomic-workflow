@@ -18,6 +18,7 @@ metadata:
 2. 현재 `subagents.agentOverrides`에 등록된 matt-pocock-atomic-workflow 에이전트 설정 현황을 정리해 보여준다:
    - `explorer` (Phase 0 탐색)
    - `planner` (Phase 1 계획)
+   - `plan-reviewer` (Phase 1.5 PLAN 비판 검토, `run-pipeline.mjs` 자동)
    - `tasker` (Phase 2 태스크)
    - `worker` (Phase 3 실행)
    - `reviewer` (Phase 4 검토)

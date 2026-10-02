@@ -14,6 +14,7 @@ disable-model-invocation: true
 |---|---|---|---|
 | explore / recon | `explorer` / `scout` | `matt-pocock-atomic-workflow` | `explorer`, `scout` |
 | plan | `planner` | `codebase-design` | `planner` |
+| plan-review | `plan-reviewer` | `codebase-design`, `tdd` | `plan-reviewer` |
 | task | `tasker` | `to-tickets` | `tasker` |
 | execute | `worker` | `tdd` | `worker` |
 | test | `tester` | `tdd`, `codebase-design` | `tester` |

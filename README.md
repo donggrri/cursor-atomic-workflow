@@ -31,7 +31,7 @@ Everything installs into the target Cursor project:
 |---|---|---|
 | Command skills | `.cursor/skills/matt-pocock-atomic-<name>/SKILL.md` | Each one is a slash command (`/matt-pocock-atomic-plan`, …) and holds the command logic |
 | Workflow skill | `.cursor/skills/matt-pocock-atomic-workflow/` | Orchestration docs (`CONTEXT.md`, `reference.md`, `workers.md`, `testing.md`, `models.md`), the Cursor harness adapter (`references/harness.md`), and bundled copies of `work-status.mjs` / `run-done.mjs` |
-| Subagents | `.cursor/agents/*.md` | 7 agents: `explorer`, `planner`, `tasker`, `worker`, `matt-pocock-atomic-reviewer`, `tester`, `cli-delegate` |
+| Subagents | `.cursor/agents/*.md` | 8 agents: `explorer`, `planner`, `plan-reviewer`, `tasker`, `worker`, `matt-pocock-atomic-reviewer`, `tester`, `cli-delegate` |
 | Runner scripts | `scripts/` | `install.mjs`, `run-pipeline.mjs`, `doctor.mjs`, `check-agents.mjs`, `work-status.mjs`, `run-done.mjs`, `lib/` |
 | Settings reference | `settings.example.json` | Pi-style `subagents.agentOverrides` reference (used by `/matt-pocock-atomic-config init`) |
 
@@ -76,7 +76,7 @@ node scripts/check-agents.mjs  # .cursor/agents models match scripts/lib/roles.m
 
 ## 3. Usage
 
-Default: once **PLAN is confirmed**, task → execute → review run automatically. Commit only happens with `/matt-pocock-atomic-wrapup`.
+Default: once **PLAN is confirmed**, the pipeline runner runs **plan-review** (critical PLAN critique) → task → execute → review automatically. Commit only happens with `/matt-pocock-atomic-wrapup`.
 
 | Command | Role | Output |
 |---|---|---|
@@ -107,7 +107,7 @@ If PLAN has blocking questions (security, scope, data loss), it stops there. To 
 node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-card] [--repo <dir>] [--dry-run]
 ```
 
-- `--adapter sdk` (default) drives Cursor Task subagents through `@cursor/sdk`. Without the SDK it falls back to `--adapter task-card`, stops with exit code `10`, and leaves `next-card.json` for the parent session to execute and `--resume`.
+- `--adapter sdk` (default) drives Cursor Task subagents through `@cursor/sdk`. Without the SDK it falls back to `--adapter task-card`, stops with exit code `10`, and leaves `next-card.json` for the parent session to execute and `--resume`. After the cost gate, **plan-review** runs `plan-reviewer` (writes `PLAN-REVIEW-<slug>.md`); blocking defects trigger one planner auto-revision and re-review, then exit `20` if defects remain. On **Review** entry (initial and after rework), exit `10` may be a **`kind: "bugbot"`** card first: the parent runs Cursor `bugbot`, saves output to `~/.matt-pocock-workflow/runs/{shortRepo}/{slug}/bugbot-findings.md` (or a `# BUGBOT_FAILED` marker on failure), then `--resume` before the reviewer runs.
 - The log lives at `~/.matt-pocock-workflow/runs/{shortRepo}/{slug}/pipeline.log`; per-step command logs get a `.done.json` summary next to them.
 - `--resume` retries failed items (already checked items stay done).
 
@@ -117,9 +117,9 @@ Exit codes:
 |---|---|
 | 0 | Pipeline finished |
 | 2 | Usage error |
-| 10 | Parent action required (task-card hand-off) |
-| 20 | Human gate (PLAN approval) |
-| 30 | A task item failed |
+| 10 | Parent action required (bugbot pre-review card, task-card hand-off, or cli-delegate) |
+| 20 | Human gate (PLAN approval, plan-review blocking defects after auto-revision, cost ack, …) |
+| 30 | A task item failed, or plan-review step failed (missing/malformed PLAN-REVIEW) |
 | 40 | Defects remained after the one rework round |
 | 50 | Startup failure |
 
@@ -133,6 +133,7 @@ The model for a phase is the `model` frontmatter of `.cursor/agents/<agent>.md`,
 |---|---|---|
 | explorer | `explorer` | `composer-2.5` |
 | planner | `planner` | `claude-opus-5-5-high` |
+| plan-reviewer | `plan-reviewer` | `grok-4.7-high` |
 | tasker | `tasker` | `composer-2.5` |
 | worker | `worker` | `composer-2.5` |
 | reviewer | `matt-pocock-atomic-reviewer` | `grok-4.7-xhigh` (fallback `claude-sonnet-5-5-high`) |

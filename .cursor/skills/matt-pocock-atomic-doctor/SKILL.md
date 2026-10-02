@@ -22,5 +22,5 @@ metadata:
    - 스킬 frontmatter(`SKILL.md`) YAML 문법 에러(unquoted colon 등) 유무
    - 하네스 생성 파일 드리프트와 설치 상태, 레거시 `.cursor/commands/` 잔존 여부
    - 적용된 자동 교정 내역
-4. Cursor 세션이면 파일 설치만으로 통과시키지 않는다. `available_subagent_types`에 `explorer`, `planner`, `tasker`, `worker`, `matt-pocock-atomic-reviewer`, `tester`, `cli-delegate`가 있는지 대조한다. 하나라도 없으면 진단 실패다. `reviewer`만 있고 `matt-pocock-atomic-reviewer`가 없으면 옛 설치다. `node scripts/install.mjs --harness cursor --target "$HOME" --skills-dir .cursor/skills --force` 뒤 새 세션이 필요하다.
+4. Cursor 세션이면 파일 설치만으로 통과시키지 않는다. `available_subagent_types`에 `explorer`, `planner`, `plan-reviewer`, `tasker`, `worker`, `matt-pocock-atomic-reviewer`, `tester`, `cli-delegate`가 있는지 대조한다. 하나라도 없으면 진단 실패다. `reviewer`만 있고 `matt-pocock-atomic-reviewer`가 없으면 옛 설치다. `node scripts/install.mjs --harness cursor --target "$HOME" --skills-dir .cursor/skills --force` 뒤 새 세션이 필요하다.
 5. 한국어로 친절하고 명확하게 진단 및 교정 결과를 보고한다.

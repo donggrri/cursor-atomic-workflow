@@ -20,6 +20,7 @@ TASKS `worker:`가 `agy|pi|opencode|codex|claude`이면 `cli-delegate`를 띄운
 |---|---|---|
 | explorer | `explorer` | `composer-2.5` |
 | planner | `planner` | `claude-opus-5-5-high` |
+| plan-reviewer | `plan-reviewer` | `grok-4.7-high` |
 | tasker | `tasker` | `composer-2.5` |
 | worker | `worker` | `composer-2.5` |
 | reviewer | `matt-pocock-atomic-reviewer` | `grok-4.7-xhigh` |
@@ -27,6 +28,34 @@ TASKS `worker:`가 `agy|pi|opencode|codex|claude`이면 `cli-delegate`를 띄운
 | cli-delegate | `cli-delegate` | `composer-2.5` |
 
 reviewer의 `model`은 `grok-4.7-xhigh`다. 그 슬러그가 세션 `available_subagent_models`에 없으면 `claude-sonnet-5-5-high`를 넣고, 어느 것을 썼는지 보고한다. 다른 역할은 표의 슬러그만 쓴다.
+
+### Bugbot 선행 검토 카드
+
+Review 단계 진입마다 `run-pipeline.mjs`가 bugbot 호출 카드를 남기고 종료코드 10으로 멈출 수 있다. **bugbot은 위 역할 모델 표의 유일한 예외**다. `ROLES`·`.cursor/agents`에 bugbot 역할을 두지 않으며, Task 호출 시 **`model` 필드를 넣지 않고 세션 기본 모델**로 first-party `subagent_type: "bugbot"`을 호출한다. `kind: "bugbot"` 카드는 task-card 5역할 존재 검사 대상이 아니다.
+
+- `description`: `"Bugbot"`
+- `subagent_type`: `"bugbot"`
+- `run_in_background`: `false`
+- `prompt`(정확히 3줄):
+  - `Full Repository Path: <repoRoot>`
+  - `Diff: branch changes`
+  - `Custom Instructions: matt-pocock-atomic-workflow slug <slug>, review pass <n>. Spec: PLAN <planPath>, TASKS <tasksPath>. Report only concrete bugs in the branch changes.`
+- 부모는 bugbot 결과를 `findingsPath`(`runs/.../bugbot-findings.md`)에 `# Bugbot findings — <slug> pass <n>` 헤더와 함께 저장하거나, 실패 시 `# BUGBOT_FAILED` / `reason:` / `attempts:` 마커를 쓴 뒤 `--resume`한다.
+
+예시(Task, `model` 생략):
+
+```text
+namespace: cursor
+toolName: Task
+arguments:
+  description: Bugbot
+  subagent_type: bugbot
+  run_in_background: false
+  prompt: |
+    Full Repository Path: /path/to/repo
+    Diff: branch changes
+    Custom Instructions: matt-pocock-atomic-workflow slug my-slug, review pass 1. Spec: PLAN /path/PLAN-my-slug.md, TASKS /path/TASKS-my-slug.md. Report only concrete bugs in the branch changes.
+```
 
 `model`은 이번 세션의 `available_subagent_models`에 있을 때만 그 슬러그를 넣는다. 없으면 호출을 멈추고 없는 슬러그와 세션 목록을 보고한다. 같은 계열의 다른 슬러그로 바꿀 때는 어떤 슬러그를 썼는지 보고에 적는다. `inherit`나 생략으로 부모 모델을 쓰지 않는다.
 
@@ -43,7 +72,11 @@ arguments:
     이어서 역할, 슬러그, 산출물 경로, 하지 않을 것
 ```
 
-`subagent_type`이 `available_subagent_types`에 없으면 그 타입으로 Task를 호출하지 않는다. 없는 역할을 다른 `subagent_type`으로 바꾸지 않는다. 러너가 task-card(종료코드 10)로 멈췄고 세션에 `tasker`, `planner`, `worker`, `matt-pocock-atomic-reviewer` 중 하나라도 없으면 카드를 실행하지 말고, 같은 슬러그를 `--adapter sdk --resume`로 다시 실행한다. 그 밖의 누락은 설치가 옛 것이므로 보고하고, `node scripts/install.mjs --target <프로젝트> --force` 뒤 새 세션이 필요하다.
+`subagent_type`이 `available_subagent_types`에 없으면 그 타입으로 Task를 호출하지 않는다. 없는 역할을 다른 `subagent_type`으로 바꾸지 않는다. 러너가 task-card(종료코드 10)로 멈췄고 세션에 `tasker`, `planner`, `plan-reviewer`, `worker`, `matt-pocock-atomic-reviewer` 중 하나라도 없으면 카드를 실행하지 말고, 같은 슬러그를 `--adapter sdk --resume`로 다시 실행한다. 그 밖의 누락은 설치가 옛 것이므로 보고하고, `node scripts/install.mjs --target <프로젝트> --force` 뒤 새 세션이 필요하다.
+
+### plan-reviewer (PLAN 비판 검토)
+
+cost-gate 통과 후 tasker 전에 러너가 `plan-reviewer`를 띄운다. Task `model`은 **`grok-4.7-high`**(위 역할 표). SDK 경로는 헤드리스로 끝까지 진행하고, task-card는 `subagent_type: "plan-reviewer"` 카드로 종료코드 10 후 부모 Task → `--resume`한다. planner 자동 수정 카드는 `subagent_type: "planner"`(revise 프롬프트). 상세 전이·종료코드는 [routing.md](routing.md) 「PLAN 비판 검토」를 따른다.
 
 ## 커맨드 입력
 

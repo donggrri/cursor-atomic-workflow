@@ -31,7 +31,7 @@ Cursor용 atomic explore → plan → task → execute → review 워크플로 (
 |---|---|---|
 | 커맨드 스킬 | `.cursor/skills/matt-pocock-atomic-<이름>/SKILL.md` | 하나하나가 슬래시 커맨드(`/matt-pocock-atomic-plan` 등)이며 커맨드 로직을 담는다 |
 | 워크플로 스킬 | `.cursor/skills/matt-pocock-atomic-workflow/` | 오케스트레이션 문서(`CONTEXT.md`, `reference.md`, `workers.md`, `testing.md`, `models.md`), Cursor 하네스 어댑터(`references/harness.md`), `work-status.mjs` / `run-done.mjs` 번들 복사본 |
-| 서브에이전트 | `.cursor/agents/*.md` | 에이전트 7종: `explorer`, `planner`, `tasker`, `worker`, `matt-pocock-atomic-reviewer`, `tester`, `cli-delegate` |
+| 서브에이전트 | `.cursor/agents/*.md` | 에이전트 8종: `explorer`, `planner`, `plan-reviewer`, `tasker`, `worker`, `matt-pocock-atomic-reviewer`, `tester`, `cli-delegate` |
 | 러너 스크립트 | `scripts/` | `install.mjs`, `run-pipeline.mjs`, `doctor.mjs`, `check-agents.mjs`, `work-status.mjs`, `run-done.mjs`, `lib/` |
 | 설정 참고 | `settings.example.json` | Pi 스타일 `subagents.agentOverrides` 참고 파일(`/matt-pocock-atomic-config init`이 사용) |
 
@@ -76,7 +76,7 @@ node scripts/check-agents.mjs  # .cursor/agents 모델이 scripts/lib/roles.mjs�
 
 ## 3. 사용법
 
-기본: **PLAN만 확정하면** task → execute → review가 자동이다. 커밋은 `/matt-pocock-atomic-wrapup`일 때만.
+기본: **PLAN만 확정하면** 러너가 **plan-review**(PLAN 비판 검토) → task → execute → review를 자동 실행한다. 커밋은 `/matt-pocock-atomic-wrapup`일 때만.
 
 | 커맨드 | 역할 | 산출물 |
 |---|---|---|
@@ -107,7 +107,7 @@ PLAN에 막힌 질문(보안·범위·데이터 손실)이 있으면 거기서 �
 node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-card] [--repo <dir>] [--dry-run]
 ```
 
-- `--adapter sdk`(기본)는 `@cursor/sdk`로 Cursor Task 서브에이전트를 구동한다. SDK가 없으면 `--adapter task-card`로 떨어져 종료코드 `10`으로 멈추고, 부모 세션이 실행할 `next-card.json`을 남긴다. 이후 `--resume`한다.
+- `--adapter sdk`(기본)는 `@cursor/sdk`로 Cursor Task 서브에이전트를 구동한다. SDK가 없으면 `--adapter task-card`로 떨어져 종료코드 `10`으로 멈추고, 부모 세션이 실행할 `next-card.json`을 남긴다. 이후 `--resume`한다. cost-gate 뒤 **plan-review**가 `plan-reviewer`를 실행해 `PLAN-REVIEW-<slug>.md`를 쓰고, 차단 결함은 planner 1회 자동 수정·재검토 후에도 남으면 종료코드 `20`으로 멈춘다. **Review** 진입(초기·재작업 후)마다 종료코드 `10`이 **`kind: "bugbot"`** 선행 검토 카드일 수 있다. 부모가 Cursor `bugbot`을 실행하고 `~/.matt-pocock-workflow/runs/{shortRepo}/{slug}/bugbot-findings.md`에 결과를 저장(실패 시 `# BUGBOT_FAILED` 마커)한 뒤 `--resume`하고 reviewer가 이어진다.
 - 로그는 `~/.matt-pocock-workflow/runs/{shortRepo}/{slug}/pipeline.log`에 쌓이고, 단계별 커맨드 로그 옆에는 `.done.json` 요약이 생긴다.
 - `--resume`은 실패한 항목만 재시도한다(이미 체크된 항목은 유지).
 
@@ -117,9 +117,9 @@ node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-car
 |---|---|
 | 0 | 파이프라인 완료 |
 | 2 | 사용법 오류 |
-| 10 | 부모 행동 필요 (task-card 인계) |
-| 20 | 사람 게이트 (PLAN 승인) |
-| 30 | 항목 실패 |
+| 10 | 부모 행동 필요 (bugbot 선행 검토 카드, task-card 인계, cli-delegate) |
+| 20 | 사람 게이트 (PLAN 승인, plan-review 차단 결함, 비용 확인 등) |
+| 30 | 항목 실패 또는 plan-review 단계 실패(PLAN-REVIEW 없음·형식 불량) |
 | 40 | 재작업 1회 후에도 결함 |
 | 50 | 시작 실패 |
 
@@ -133,6 +133,7 @@ node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-car
 |---|---|---|
 | explorer | `explorer` | `composer-2.5` |
 | planner | `planner` | `claude-opus-5-5-high` |
+| plan-reviewer | `plan-reviewer` | `grok-4.7-high` |
 | tasker | `tasker` | `composer-2.5` |
 | worker | `worker` | `composer-2.5` |
 | reviewer | `matt-pocock-atomic-reviewer` | `grok-4.7-xhigh` (폴백 `claude-sonnet-5-5-high`) |

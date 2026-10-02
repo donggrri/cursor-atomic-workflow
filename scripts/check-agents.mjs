@@ -67,6 +67,14 @@ export function checkAgents(options = {}) {
     );
   }
 
+  const plannerFamily = modelFamily(getRole("planner").taskModel);
+  const planReviewerFamily = modelFamily(getRole("plan-reviewer").taskModel);
+  if (plannerFamily === planReviewerFamily) {
+    problems.push(
+      `plan-reviewer model family "${planReviewerFamily}" must differ from planner "${plannerFamily}"`,
+    );
+  }
+
   return { ok: problems.length === 0, problems };
 }
 

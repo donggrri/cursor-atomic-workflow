@@ -24,6 +24,14 @@ export const ROLES = {
       ],
     },
   },
+  "plan-reviewer": {
+    subagentType: "plan-reviewer",
+    taskModel: "grok-4.7-high",
+    sdk: {
+      id: "grok-4.7",
+      params: [{ id: "reasoning_effort", value: "high" }],
+    },
+  },
   tasker: {
     subagentType: "tasker",
     taskModel: "composer-2.5",

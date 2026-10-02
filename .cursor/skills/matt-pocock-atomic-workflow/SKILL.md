@@ -47,7 +47,8 @@ Cursor Cloud Agent는 `CURSOR_CONVERSATION_ID`(`bc-…`)를 `STATUS.json`의 `se
 | 단계 | 커맨드 | 산출물 | 다음 |
 |---|---|---|---|
 | 0 | `/matt-pocock-atomic-explore` | `~/.matt-pocock-workflow/docs/{shortRepo}/{slug}/EXPLORE-<slug>.md` (레거시: `.docs/<slug>/`, `docs/<slug>/`) | 탐색 보고 후 `/matt-pocock-atomic-plan` 안내 |
-| 1 | `/matt-pocock-atomic-plan` 또는 사용자가 쓴 PLAN | `~/.matt-pocock-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md` | 막힌 질문 없으면 **자동** Phase 2 |
+| 1 | `/matt-pocock-atomic-plan` 또는 사용자가 쓴 PLAN | `~/.matt-pocock-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md` | 막힌 질문 없으면 **자동** Phase 1.5 |
+| 1.5 | (자동) `plan-reviewer` | `~/.matt-pocock-workflow/docs/{shortRepo}/{slug}/PLAN-REVIEW-<slug>.md` | 차단 결함 없으면 **자동** Phase 2 |
 | 2 | (자동) `tasker` | `~/.matt-pocock-workflow/docs/{shortRepo}/{slug}/TASKS-<slug>.md` | **자동** Phase 3 |
 | 3 | (자동) `worker` | 코드 + 체크된 TASKS | **자동** Phase 4 |
 | 4 | (자동) `reviewer` | `~/.matt-pocock-workflow/docs/{shortRepo}/{slug}/REVIEW-<slug>.md` + 테스트 | 보고. 커밋은 수동 |
@@ -59,19 +60,21 @@ Cursor Cloud Agent는 `CURSOR_CONVERSATION_ID`(`bc-…`)를 `STATUS.json`의 `se
 
 ## 기본 파이프라인 (Plan 이후 자동)
 
-사람 게이트는 **PLAN(Phase 1)뿐**이다. 리뷰 재작업 1회·막힘 재개는 정책으로 자동 실행된다. 모델은 스킬이 아니라 서브에이전트에 붙는다. 그래서 단계마다 자식을 띄우고, 그 자식이 스킬을 읽게 한다. 일상 작업은 Plan → Task → Worker → Reviewer로 직행한다. 대규모 아키텍처 개편이나 공개 API 설계 등 중대 작업인 경우에만 부모가 선택적으로 Challenge / Simplify 검토 단계를 거친다.
+사람 게이트는 **PLAN(Phase 1)뿐**이다. plan-review에서 종료코드 20으로 멈추는 것도 PLAN 게이트로 되돌아가는 것이며 새 사람 게이트를 추가하는 것이 아니다. 리뷰 재작업 1회·막힘 재개는 정책으로 자동 실행된다. 모델은 스킬이 아니라 서브에이전트에 붙는다. 그래서 단계마다 자식을 띄우고, 그 자식이 스킬을 읽게 한다. `run-pipeline.mjs`는 cost-gate 뒤 **Plan review(Phase 1.5)** → Task → Worker → Reviewer 순으로 진행한다. 대규모 아키텍처 개편이나 공개 API 설계 등 중대 작업인 경우에만 부모가 선택적으로 Challenge / Simplify 검토 단계를 거친다.
 
 PLAN이 있고 막힌 질문(보안·범위·데이터 손실)이 없으면 부모는 멈추지 않는다.
 
-1. `tasker`를 Cursor Task로 백그라운드 띄운다 ([references/harness.md](references/harness.md) 호출 카드).
-2. TASKS의 의존 순서대로 `worker`를 백그라운드 Task로 띄운다. `parallel: yes`이고 파일이 안 겹치면 같이 띄워도 된다. 워크트리당 쓰기 워커는 하나.
-3. 항목마다 **부모가 `scripts/run-done.mjs`로 `done` 명령을 재실행하고 `.done.json` 증거가 있을 때만** `[x]`.
-4. 열린 항목이 없으면 `reviewer`를 백그라운드 Task로 띄운다 (작업자의 대화 맥락을 상속받지 않는 독립 fresh 컨텍스트로 띄워 객관적 검증 보장). 결함이 있으면 REVIEW 결함을 열린 TASKS로 되돌리거나 새 항목을 붙인 뒤 worker → reviewer를 한 번만 자동 재실행한다. 한 바퀴 후에도 결함이면 멈추고 보고한다. reviewer가 완료되면 `tester`를 띄운다. tester가 완료되고 통과하면 `[x]`로 마무리한다.
-5. 결과를 한국어로 보고한다. 커밋하지 않는다.
+1. `run-pipeline.mjs`가 `plan-reviewer`로 PLAN 비판 검토(Phase 1.5)를 실행한다. 차단 결함(`## 계획 결함`)이 있으면 planner 자동 수정 1회·재검토 후에도 남으면 exit 20으로 멈춘다([references/routing.md](references/routing.md) 「PLAN 비판 검토」).
+2. `tasker`를 Cursor Task로 백그라운드 띄운다 ([references/harness.md](references/harness.md) 호출 카드).
+3. TASKS의 의존 순서대로 `worker`를 백그라운드 Task로 띄운다. `parallel: yes`이고 파일이 안 겹치면 같이 띄워도 된다. 워크트리당 쓰기 워커는 하나.
+4. 항목마다 **부모가 `scripts/run-done.mjs`로 `done` 명령을 재실행하고 `.done.json` 증거가 있을 때만** `[x]`.
+5. 열린 항목이 없으면 Review 단계로 들어간다. `run-pipeline.mjs`는 Review 진입마다(초기·재작업 후 재리뷰) **bugbot 선행 검토** 카드(`kind: "bugbot"`)를 남기고 종료코드 10으로 멈출 수 있다. 부모는 [references/routing.md](references/routing.md) 「bugbot 카드」대로 Cursor `bugbot` Task를 실행하고 `bugbot-findings.md`에 결과(또는 `BUGBOT_FAILED` 마커)를 저장한 뒤 `--resume`한다. bugbot 실패만으로 파이프라인을 멈추지 않는다. resume 후 `reviewer`(`matt-pocock-atomic-reviewer`)를 백그라운드 Task로 띄운다 (작업자의 대화 맥락을 상속받지 않는 독립 fresh 컨텍스트로 띄워 객관적 검증 보장). reviewer 프롬프트에는 `Bugbot findings: <path>`가 포함될 수 있다. 결함이 있으면 REVIEW 결함을 열린 TASKS로 되돌리거나 새 항목을 붙인 뒤 worker → reviewer를 한 번만 자동 재실행한다(재리뷰 전 pass 2 bugbot 게이트 포함). 한 바퀴 후에도 결함이면 멈추고 보고한다. reviewer가 완료되면 `tester`를 띄운다. tester가 완료되고 통과하면 `[x]`로 마무리한다.
+6. 결과를 한국어로 보고한다. `state.planReview.revised`이면 PLAN 자동 수정·승인본 경로를 보고에 적는다. 커밋하지 않는다.
 
 멈추는 경우:
 
 - PLAN에 막힌 질문이 있다
+- plan-review 차단 결함이 자동 수정·재검토 후에도 남아 exit 20(PLAN 게이트로 복귀)
 - 사용자가 「계획만」/「태스크만」/「구현만」이라고 했다
 - 항목 `done`이 실패했다 (막힘 재개: 실패한 항목만 재시도. 이미 [x]는 유지. 재시도 시작 때 그 항목의 `막힘:`만 지운다. 입구는 `/matt-pocock-atomic-execute`)
 - 리뷰 재작업 한 바퀴 후에도 결함이 남았다 (한 바퀴 후에도 결함이면 멈추고 보고)
@@ -89,6 +92,7 @@ PLAN이 있고 막힌 질문(보안·범위·데이터 손실)이 없으면 부�
 |---|---|---|
 | explore / recon | `explorer` | 코드가 낯설거나 탐색/리서치 필요 시 |
 | plan | `planner` | PLAN이 이미 있으면 건너뜀. 그 외는 항상 자식 |
+| plan-review | `plan-reviewer` | `run-pipeline.mjs`가 cost-gate 뒤 항상 실행. 수동 커맨드 없음 |
 | task | `tasker` | 항상 자식. `self`를 말한 경우만 직접 |
 | execute | `worker` | 항상 자식. `self`를 말한 경우만 직접 |
 | review | `matt-pocock-atomic-reviewer` | 항상 자식 |
@@ -156,7 +160,16 @@ Pi에서는 워크트리를 만든 뒤 그 경로를 작업 `cwd`로 쓴다. Cur
 6. [reference.md](reference.md) 템플릿으로 PLAN 위치 규칙에 따라 `.docs/<slug>/PLAN-<slug>.md`(워크플로 자체는 `docs/<slug>/PLAN-<slug>.md`)를 쓴다. 부모가 만든 `계획 정제` brief를 planner에게 전달하며, brief가 없으면 PLAN 완료를 허용하지 않는다.
 7. 한 줄 목표, 하지 않을 것, 의존 순서, 위험, 막힌 질문과 계획 정제 증거를 넣는다.
 8. PLAN 저장 직후 `node scripts/work-status.mjs sync <slug>`로 STATUS를 갱신한다.
-9. 막힌 질문·남은 fog가 있거나 사용자가 「계획만」이면 멈추고 계획을 보여 준다. 아니면 **기본 파이프라인**으로 Phase 2부터 자동 진행한다.
+9. 막힌 질문·남은 fog가 있거나 사용자가 「계획만」이면 멈추고 계획을 보여 준다. 아니면 **기본 파이프라인**으로 Phase 1.5(plan-review)부터 자동 진행한다.
+
+## Phase 1.5 — Plan review (자동)
+
+`run-pipeline.mjs`만 실행한다. 수동 `/matt-pocock-atomic-plan-review` 커맨드는 없다.
+
+1. cost-gate 통과 직후 `plan-reviewer`가 PLAN·EXPLORE·PLAN이 인용한 파일을 검증하고 `PLAN-REVIEW-<slug>.md`를 쓴다([reference.md](reference.md) 템플릿, **`## 계획 결함`** 필수).
+2. 차단 결함이 있으면 planner가 revise 모드로 PLAN 1회 수정 → plan-reviewer 재검토.
+3. 재검토 후에도 차단 결함이면 exit 20(PLAN 게이트). 부모는 결함을 사용자에게 보여 주고 PLAN을 고친 뒤 `--resume`.
+4. 통과하면 Phase 2(tasker)로 이어진다.
 
 ## 단계 스킬 (강제)
 
@@ -169,9 +182,10 @@ Pi에서는 워크트리를 만든 뒤 그 경로를 작업 `cwd`로 쓴다. Cur
 | explore | `explorer` | `matt-pocock-atomic-workflow` | `.docs/<slug>/EXPLORE-<slug>.md`(워크플로 자체는 `docs/<slug>/`)만 쓴다. 코드베이스 탐색, 인터페이스 식별, 리서치 전담. 코드 수정 금지 |
 | plan preflight | 부모 | `grilling`, `domain-modeling`, `codebase-design`, `wayfinder` | 사용자 대화와 bounded/wayfinding 라우팅. refinement brief가 나올 때까지 PLAN 금지 |
 | plan | `planner` | `matt-pocock-atomic-workflow`, `codebase-design`, `domain-modeling`, `grilling`, `wayfinder` | 부모 brief를 PLAN으로 구체화. 인터뷰나 tracker 발행 금지 |
+| plan-review | `plan-reviewer` | `matt-pocock-atomic-workflow`, `codebase-design`, `tdd` | PLAN 비판 검토만. `PLAN-REVIEW-<slug>.md` 작성. PLAN·코드 수정 금지 |
 | task | `tasker` | `matt-pocock-atomic-workflow`, `to-tickets` | 수직 슬라이스·의존만 가져온다. 산출물은 `.docs/<slug>/TASKS-<slug>.md`(워크플로 자체는 `docs/<slug>/`). 트래커 발행·사용자 퀴즈 금지 |
 | execute | `worker` | `matt-pocock-atomic-workflow`, `tdd` | 로직은 red→green. 커밋 금지 |
-| review | `reviewer` | `matt-pocock-atomic-workflow`, `code-review` | **Fresh Context 독립 검증**: 작업자 대화 맥락을 상속받지 않고 독립 실행. Standards / Spec 두 축을 **이 에이전트가 직접** 객관적으로 검증 (Spec = PLAN+TASKS와 git diff 대조). 손자 금지. 산출물은 `.docs/<slug>/REVIEW-<slug>.md`(워크플로 자체는 `docs/<slug>/`) |
+| review | `reviewer` | `matt-pocock-atomic-workflow`, `code-review` | Review 진입 전 **bugbot 선행 검토**(부모·종료코드 10·`bugbot-findings.md`) 후 **Fresh Context 독립 검증**: 작업자 대화 맥락을 상속받지 않고 독립 실행. Standards / Spec 두 축을 **이 에이전트가 직접** 객관적으로 검증 (Spec = PLAN+TASKS와 git diff 대조). bugbot findings는 트리아지 입력(`Bugbot findings:` 경로). 손자 금지. 산출물은 `.docs/<slug>/REVIEW-<slug>.md`(워크플로 자체는 `docs/<slug>/`) |
 | test | `tester` | `matt-pocock-atomic-workflow`, `tdd`, `codebase-design` | reviewer 완료 후 로직 diff에 대한 테스트 작성 + mutation 검증. `run-done`으로 증거 검증 |
 
 번들 출처와 revision은 패키지의 `THIRD_PARTY_LICENSES/mattpocock-skills-*`에 기록한다. 별도 `npx skills add`나 `settings.json`의 외부 skills 경로는 필요 없다.
@@ -180,7 +194,7 @@ Pi에서는 워크트리를 만든 뒤 그 경로를 작업 `cwd`로 쓴다. Cur
 
 부모는 파이프라인만 돌린다. 단계 일은 해당 모델의 자식이 한다. Commit만 부모.
 
-워커: `explorer` · `planner` · `tasker` · `worker` · `matt-pocock-atomic-reviewer` · `tester` · `cli-delegate` · `self`.
+워커: `explorer` · `planner` · `plan-reviewer` · `tasker` · `worker` · `matt-pocock-atomic-reviewer` · `tester` · `cli-delegate` · `self`.
 외부 CLI (TASKS `worker:` opt-in): `agy` · `pi` · `opencode` · `codex` · `claude`.
 
 1. 사용자가 워커를 지목했거나 TASKS에 `worker:`가 있으면 [workers.md](workers.md)를 읽는다. 기본 구현 워커는 Task `worker`.
@@ -223,6 +237,8 @@ Pi에서는 워크트리를 만든 뒤 그 경로를 작업 `cwd`로 쓴다. Cur
 ## Phase 4 — Review
 
 `reviewer`는 작업자(`worker`)의 대화 맥락을 상속받지 않는 **독립 fresh 컨텍스트**로 실행된다. 작업자의 주관적 설명이나 변명에 의존하지 않고, 오직 요구사항 명세(PLAN, TASKS), 실제 코드 변경(`git diff`), 테스트/린트 결과만을 대조하여 Standards(품질/규격)와 Spec(명세 일치도)을 객관적으로 독립 검증한다.
+
+자동 파이프라인(`run-pipeline.mjs`)에서는 Review 블록 **진입 직후** bugbot 선행 검토 게이트가 먼저 돈다. 러너가 `kind: "bugbot"` 카드로 종료코드 10을 내면 부모가 [references/routing.md](references/routing.md) 「bugbot 카드」 절차로 bugbot Task를 실행·findings 저장 후 `--resume`한다. resume 뒤에야 `matt-pocock-atomic-reviewer`가 호출되며, 프롬프트에 `Bugbot findings: <path>`가 붙을 수 있다. 수동 `/matt-pocock-atomic-review`는 이 게이트를 타지 않는다.
 
 1. [testing.md](testing.md)를 읽고 저장소의 단위 테스트·린트를 실행한다. 없으면 REVIEW에 「없음」을 적는다. `run-done`으로 테스트를 실행하고 `.done.json` 증거를 확인한다. 없으면 REVIEW에 「없음」을 적는다.
 2. TASKS의 완료 조건과 diff를 대조한다. 빠진 테스트·문서를 적는다.

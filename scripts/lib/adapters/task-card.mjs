@@ -7,6 +7,7 @@ import { getRole } from "../roles.mjs";
 const ROLE_SKILL_DIRS = {
   explorer: ["matt-pocock-atomic-workflow"],
   planner: ["matt-pocock-atomic-workflow", "codebase-design", "grilling"],
+  "plan-reviewer": ["matt-pocock-atomic-workflow", "codebase-design", "tdd"],
   tasker: ["matt-pocock-atomic-workflow", "to-tickets"],
   worker: ["matt-pocock-atomic-workflow", "tdd"],
   reviewer: ["matt-pocock-atomic-workflow", "code-review"],
