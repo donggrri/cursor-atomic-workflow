@@ -281,7 +281,8 @@ test("1 정상 완주 — exit 0, TASKS [x], statusSync, pipeline.json", async (
 
     const adapter = adapterWithPlanReview(
       {
-        async runRole({ role }) {
+        async runRole({ role, onProgress }) {
+          onProgress?.(`status RUNNING (${role})`);
           if (role === "reviewer") {
             reviewerPass += 1;
             writeFileSync(
@@ -309,6 +310,13 @@ test("1 정상 완주 — exit 0, TASKS [x], statusSync, pipeline.json", async (
     );
 
     assert.equal(result.exitCode, 0);
+    const progressLog = readFileSync(join(paths.runsDir, "pipeline.log"), "utf8");
+    assert.match(progressLog, /▶ \[plan-review\] plan-reviewer started · model=/);
+    assert.match(progressLog, /\[plan-review\/plan-reviewer\] status RUNNING/);
+    assert.match(progressLog, /■ \[plan-review\] plan-reviewer done · \d+s/);
+    assert.match(progressLog, /▶ \[tasker\] tasker started/);
+    assert.match(progressLog, /▶ \[execute\] worker started/);
+    assert.match(progressLog, /■ \[reviewer\] reviewer done/);
     const tasks = readTasks(home, repoRoot);
     assert.ok(taskLineChecked(tasks, "T1"));
     assert.ok(taskLineChecked(tasks, "T2"));
@@ -1346,6 +1354,79 @@ test("11 sdk adapter — Agent.create startup throw → kind startup", async () 
   assert.equal(result.ok, false);
   assert.equal(result.kind, "startup");
   assert.match(result.message, /Authentication/i);
+});
+
+test("11b sdk adapter — run.stream() 이벤트가 onProgress로 전달된다", async () => {
+  const messages = [
+    { type: "status", status: "RUNNING" },
+    { type: "tool_call", call_id: "1", name: "read", status: "running", args: { path: "a.md" } },
+    {
+      type: "tool_call",
+      call_id: "2",
+      name: "task",
+      status: "running",
+      args: { subagentType: "explorer" },
+    },
+    { type: "tool_call", call_id: "2", name: "task", status: "running", args: {} },
+    { type: "task", status: "done", text: "explorer finished" },
+  ];
+  const fakeSdk = {
+    Agent: {
+      async create() {
+        return {
+          async send() {
+            return {
+              id: "run-1",
+              async *stream() {
+                for (const m of messages) yield m;
+              },
+              async wait() {
+                return { status: "finished", id: "run-1" };
+              },
+            };
+          },
+          async close() {},
+        };
+      },
+    },
+  };
+  const adapter = await createSdkAdapter({ repoRoot: process.cwd(), sdk: fakeSdk });
+  const lines = [];
+  const result = await adapter.runRole({
+    role: "worker",
+    prompt: "noop",
+    cwd: process.cwd(),
+    onProgress: (l) => lines.push(l),
+  });
+  assert.equal(result.ok, true);
+  assert.deepEqual(lines, [
+    "status RUNNING",
+    "subagent running explorer",
+    "subagent done explorer finished",
+  ]);
+});
+
+test("11c sdk adapter — run.stream 없어도(또는 onProgress 없이) 동작", async () => {
+  const fakeSdk = {
+    Agent: {
+      async create() {
+        return {
+          async send() {
+            return { id: "r", async wait() { return { status: "finished", id: "r" }; } };
+          },
+          async close() {},
+        };
+      },
+    },
+  };
+  const adapter = await createSdkAdapter({ repoRoot: process.cwd(), sdk: fakeSdk });
+  const result = await adapter.runRole({
+    role: "worker",
+    prompt: "noop",
+    cwd: process.cwd(),
+    onProgress: () => {},
+  });
+  assert.equal(result.ok, true);
 });
 
 test("12 loadSdk — import 실패 시 null (과금 없음)", async () => {

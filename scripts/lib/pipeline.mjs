@@ -311,14 +311,28 @@ export async function runPipeline(opts) {
     const model = roleDef.taskModel;
     let attempts = 0;
     const maxAttempts = 2;
+    const showProgress = !isTaskCardAdapter(adapter);
     while (attempts < maxAttempts) {
       attempts += 1;
+      const startedAt = Date.now();
+      if (showProgress) {
+        const retry = attempts > 1 ? ` (attempt ${attempts}/${maxAttempts})` : "";
+        emit(`▶ [${phaseKey}] ${role} started · model=${model}${retry}`);
+      }
       const result = await adapter.runRole({
         role,
         prompt,
         cwd: repoRoot,
         model,
+        onProgress: showProgress
+          ? (line) => emit(`    [${phaseKey}/${role}] ${line}`)
+          : undefined,
       });
+      if (showProgress) {
+        const secs = Math.round((Date.now() - startedAt) / 1000);
+        const outcome = result.ok ? "done" : `failed (${result.kind ?? "error"})`;
+        emit(`■ [${phaseKey}] ${role} ${outcome} · ${secs}s`);
+      }
       if (result.ok) {
         return { ok: true, summary: result.summary };
       }
