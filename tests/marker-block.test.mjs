@@ -4,8 +4,8 @@
  * import { upsertBlock, removeBlock, hasBlock } from "../scripts/lib/marker-block.mjs";
  *
  * Markers (exact):
- *   <!-- matt-pocock-atomic-workflow:begin -->
- *   <!-- matt-pocock-atomic-workflow:end -->
+ *   <!-- cursor-atomic-workflow:begin -->
+ *   <!-- cursor-atomic-workflow:end -->
  *
  * upsertBlock(text, body) -> string
  *   - Empty text: returns only one block wrapping body (markers + body + newlines as in wrapBlock).
@@ -23,7 +23,7 @@
  *   - true when text contains exactly one well-formed begin/end pair with begin before end.
  *
  * Block shape (LF inside the block region):
- *   <!-- matt-pocock-atomic-workflow:begin -->\n{body}\n<!-- matt-pocock-atomic-workflow:end -->
+ *   <!-- cursor-atomic-workflow:begin -->\n{body}\n<!-- cursor-atomic-workflow:end -->
  */
 
 import test from "node:test";
@@ -31,8 +31,8 @@ import assert from "node:assert/strict";
 
 import { upsertBlock, removeBlock, hasBlock } from "../scripts/lib/marker-block.mjs";
 
-const BEGIN = "<!-- matt-pocock-atomic-workflow:begin -->";
-const END = "<!-- matt-pocock-atomic-workflow:end -->";
+const BEGIN = "<!-- cursor-atomic-workflow:begin -->";
+const END = "<!-- cursor-atomic-workflow:end -->";
 
 /** @param {string} body */
 function wrapBlock(body) {
@@ -98,12 +98,12 @@ test("removeBlock on text without a block returns text unchanged", () => {
 });
 
 test("upsertBlock throws on begin-only marker without mutating input", () => {
-  const text = "prefix\n<!-- matt-pocock-atomic-workflow:begin -->\ninner\n";
+  const text = "prefix\n<!-- cursor-atomic-workflow:begin -->\ninner\n";
   assertInputUnchangedOnThrow(() => upsertBlock(text, "new"), text);
 });
 
 test("upsertBlock throws on end-only marker without mutating input", () => {
-  const text = "inner\n<!-- matt-pocock-atomic-workflow:end -->\nsuffix\n";
+  const text = "inner\n<!-- cursor-atomic-workflow:end -->\nsuffix\n";
   assertInputUnchangedOnThrow(() => upsertBlock(text, "new"), text);
 });
 
@@ -113,10 +113,10 @@ test("upsertBlock throws on two blocks without mutating input", () => {
 });
 
 test("removeBlock throws on mismatched markers without mutating input", () => {
-  const beginOnly = "x\n<!-- matt-pocock-atomic-workflow:begin -->\n";
+  const beginOnly = "x\n<!-- cursor-atomic-workflow:begin -->\n";
   assertInputUnchangedOnThrow(() => removeBlock(beginOnly), beginOnly);
 
-  const endOnly = "<!-- matt-pocock-atomic-workflow:end -->\n";
+  const endOnly = "<!-- cursor-atomic-workflow:end -->\n";
   assertInputUnchangedOnThrow(() => removeBlock(endOnly), endOnly);
 
   const two = `${wrapBlock("a")}\n${wrapBlock("b")}\n`;

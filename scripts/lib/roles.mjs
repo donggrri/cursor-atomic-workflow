@@ -6,10 +6,10 @@
 export const ROLES = {
   explorer: {
     subagentType: "explorer",
-    taskModel: "composer-2.5",
+    taskModel: "grok-4.7-high",
     sdk: {
-      id: "glm-5p3-flash",
-      params: [{ id: "effort", value: "max" }],
+      id: "grok-4.7",
+      params: [{ id: "reasoning_effort", value: "high" }],
     },
   },
   planner: {
@@ -34,43 +34,42 @@ export const ROLES = {
   },
   tasker: {
     subagentType: "tasker",
-    taskModel: "composer-2.5",
+    taskModel: "grok-4.7-high",
     sdk: {
-      id: "glm-5p3-flash",
-      params: [{ id: "effort", value: "max" }],
+      id: "grok-4.7",
+      params: [{ id: "reasoning_effort", value: "high" }],
     },
   },
   worker: {
     subagentType: "worker",
-    taskModel: "composer-2.5",
+    taskModel: "grok-4.7-high",
     sdk: {
-      id: "glm-5p3-flash",
-      params: [{ id: "effort", value: "max" }],
+      id: "grok-4.7",
+      params: [{ id: "reasoning_effort", value: "high" }],
     },
   },
   reviewer: {
-    subagentType: "matt-pocock-atomic-reviewer",
-    taskModel: "grok-4.7-xhigh",
-    taskModelFallback: "claude-sonnet-5-5-high",
+    subagentType: "cursor-atomic-reviewer",
+    taskModel: "claude-sonnet-5-5-high",
     sdk: {
-      id: "grok-4.7",
-      params: [{ id: "reasoning_effort", value: "xhigh" }],
+      id: "claude-sonnet-5-5",
+      params: [{ id: "reasoning_effort", value: "high" }],
     },
   },
   tester: {
     subagentType: "tester",
-    taskModel: "composer-2.5",
+    taskModel: "grok-4.7-high",
     sdk: {
-      id: "glm-5p3-flash",
-      params: [{ id: "effort", value: "max" }],
+      id: "grok-4.7",
+      params: [{ id: "reasoning_effort", value: "high" }],
     },
   },
   "cli-delegate": {
     subagentType: "cli-delegate",
-    taskModel: "composer-2.5",
+    taskModel: "grok-4.7-high",
     sdk: {
-      id: "glm-5p3-flash",
-      params: [{ id: "effort", value: "max" }],
+      id: "grok-4.7",
+      params: [{ id: "reasoning_effort", value: "high" }],
     },
   },
 };

@@ -14,9 +14,9 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-/** Pi 역할 이름 → Cursor 에이전트 파일 이름 (--set-model reviewer=… 매핑용). T2b에서 roles.mjs로 이전 예정. */
+/** 역할 이름 → Cursor 에이전트 파일 이름 (--set-model reviewer=… 매핑용). */
 const CURSOR_AGENT_FILE = {
-  reviewer: "matt-pocock-atomic-reviewer"
+  reviewer: "cursor-atomic-reviewer"
 };
 
 export const DEFAULT_SKILLS_DIR = ".cursor/skills";
@@ -81,7 +81,7 @@ async function listMarkdown(dir) {
 /** 대상 프로젝트에 남은 레거시 Cursor 커맨드(같은 이름의 스킬과 슬래시 메뉴에서 겹친다). */
 export async function findLegacyCursorCommands(target) {
   return (await listMarkdown(join(target, LEGACY_CURSOR_COMMANDS_DIR)))
-    .filter((f) => f.startsWith("matt-pocock-atomic-"))
+    .filter((f) => f.startsWith("cursor-atomic-"))
     .map((f) => join(target, LEGACY_CURSOR_COMMANDS_DIR, f));
 }
 
@@ -173,7 +173,7 @@ if (process.argv[1] && process.argv[1].endsWith("install.mjs")) {
         console.log("\n레거시 Cursor 커맨드가 남아 있습니다. 같은 이름의 스킬과 슬래시 메뉴에서 겹치므로 지우세요:");
         for (const f of res.legacy) console.log(`  rm ${f}`);
       }
-      console.log("\n설치 완료. 커맨드: Cursor `/matt-pocock-atomic-plan` 등 스킬 슬래시.");
+      console.log("\n설치 완료. 커맨드: Cursor `/cursor-atomic-plan` 등 스킬 슬래시.");
       console.log("단계별 모델은 `.cursor/agents/*.md` frontmatter `model`과 Task 호출 `model`로 지정합니다.");
     })
     .catch((err) => {

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-const skillRoot = ".cursor/skills/matt-pocock-atomic-workflow";
+const skillRoot = ".cursor/skills/cursor-atomic-workflow";
 const scriptsDir = join(skillRoot, "scripts");
 
 test("invoke-worker.sh exists and is executable", async () => {
@@ -50,12 +50,12 @@ test("invoke-worker.sh rejects unknown worker with exit 2", async () => {
   }
 });
 
-test("invoke-worker.ps1 documents pi and claude workers", async () => {
+test("invoke-worker.ps1 documents claude workers and skills", async () => {
   const text = await readFile(join(scriptsDir, "invoke-worker.ps1"), "utf8");
-  assert.match(text, /'pi'/);
+  assert.doesNotMatch(text, /'pi'/);
   assert.match(text, /'claude'/);
   assert.match(text, /Skills/i);
-  assert.match(text, /Resolve-PiPkg/);
+  assert.doesNotMatch(text, /Resolve-PiPkg/);
 });
 
 test("invoke-worker.sh supports --dry-run", async () => {
@@ -89,14 +89,12 @@ test("invoke-worker.sh supports --dry-run", async () => {
   }
 });
 
-test("invoke-worker.sh never documents bare agy/pi without -p", async () => {
+test("invoke-worker.sh never documents a bare agy invocation", async () => {
   const text = await readFile(join(scriptsDir, "invoke-worker.sh"), "utf8");
   assert.doesNotMatch(text, /^\s*agy\s*$/m);
-  assert.doesNotMatch(text, /^\s*pi\s*$/m);
-  assert.match(text, /MATT_POCOCK_SKILL_ROOT/);
-  assert.match(text, /resolve_pi_pkg/);
+  assert.match(text, /CURSOR_ATOMIC_SKILL_ROOT/);
+  assert.doesNotMatch(text, /resolve_pi_pkg/);
   assert.match(text, /--dry-run/);
   assert.match(text, /--skills-file/);
   assert.match(text, /run_with_timeout/);
-  assert.match(text, /--no-session -a/);
 });

@@ -10,19 +10,19 @@ const SKILLS = ".cursor/skills";
 const skillFile = (name) => join(SKILLS, name, "SKILL.md");
 
 const COMMAND_SKILLS = [
-  "matt-pocock-atomic-config",
-  "matt-pocock-atomic-delegate",
-  "matt-pocock-atomic-doctor",
-  "matt-pocock-atomic-execute",
-  "matt-pocock-atomic-explore",
-  "matt-pocock-atomic-models",
-  "matt-pocock-atomic-plan",
-  "matt-pocock-atomic-review",
-  "matt-pocock-atomic-run",
-  "matt-pocock-atomic-settings",
-  "matt-pocock-atomic-status",
-  "matt-pocock-atomic-task",
-  "matt-pocock-atomic-wrapup",
+  "cursor-atomic-config",
+  "cursor-atomic-delegate",
+  "cursor-atomic-doctor",
+  "cursor-atomic-execute",
+  "cursor-atomic-explore",
+  "cursor-atomic-models",
+  "cursor-atomic-plan",
+  "cursor-atomic-review",
+  "cursor-atomic-run",
+  "cursor-atomic-settings",
+  "cursor-atomic-status",
+  "cursor-atomic-task",
+  "cursor-atomic-wrapup",
 ];
 
 const requiredSkills = [
@@ -36,14 +36,14 @@ const requiredSkills = [
 ];
 
 const workflowAgents = {
-  explorer: ["matt-pocock-atomic-workflow"],
-  planner: ["matt-pocock-atomic-workflow", "codebase-design", "domain-modeling", "grilling", "wayfinder"],
-  "plan-reviewer": ["matt-pocock-atomic-workflow", "codebase-design", "tdd"],
-  tasker: ["matt-pocock-atomic-workflow", "to-tickets"],
-  worker: ["matt-pocock-atomic-workflow", "tdd"],
-  reviewer: ["matt-pocock-atomic-workflow", "code-review"],
-  tester: ["matt-pocock-atomic-workflow", "tdd", "codebase-design"],
-  "cli-delegate": ["matt-pocock-atomic-workflow"]
+  explorer: ["cursor-atomic-workflow"],
+  planner: ["cursor-atomic-workflow", "codebase-design", "domain-modeling", "grilling", "wayfinder"],
+  "plan-reviewer": ["cursor-atomic-workflow", "codebase-design", "tdd"],
+  tasker: ["cursor-atomic-workflow", "to-tickets"],
+  worker: ["cursor-atomic-workflow", "tdd"],
+  reviewer: ["cursor-atomic-workflow", "code-review"],
+  tester: ["cursor-atomic-workflow", "tdd", "codebase-design"],
+  "cli-delegate": ["cursor-atomic-workflow"]
 };
 
 const oldAgentIds = ["g-explorer", "g-planner", "g-tasker", "g-worker", "g-reviewer"];
@@ -104,7 +104,6 @@ test("package.json meets public publish metadata contract", async () => {
     ".cursor/",
     "scripts/",
     "profiles/",
-    "settings.example.json",
     "README.md",
     "README.kr.md",
     "THIRD_PARTY_LICENSES/",
@@ -141,20 +140,20 @@ test("bundled skills are present", async () => {
 });
 
 test("planning preflight is defined in the plan command skill", async () => {
-  const plan = await readFile(skillFile("matt-pocock-atomic-plan"), "utf8");
-  assert.match(plan, /grilling/, "matt-pocock-atomic-plan.md must reference grilling");
-  assert.match(plan, /wayfinder/, "matt-pocock-atomic-plan.md must reference wayfinder");
-  assert.doesNotMatch(plan, /way-finder/, "matt-pocock-atomic-plan.md must not reference old way-finder typo");
+  const plan = await readFile(skillFile("cursor-atomic-plan"), "utf8");
+  assert.match(plan, /grilling/, "cursor-atomic-plan.md must reference grilling");
+  assert.match(plan, /wayfinder/, "cursor-atomic-plan.md must reference wayfinder");
+  assert.doesNotMatch(plan, /way-finder/, "cursor-atomic-plan.md must not reference old way-finder typo");
 });
 
 test("artifact writers use slug folders under .docs and harness docs", async () => {
   const files = [
-    skillFile("matt-pocock-atomic-workflow"),
+    skillFile("cursor-atomic-workflow"),
     join(".cursor", "agents", "explorer.md"),
     join(".cursor", "agents", "planner.md"),
-    skillFile("matt-pocock-atomic-explore"),
-    skillFile("matt-pocock-atomic-plan"),
-    skillFile("matt-pocock-atomic-status"),
+    skillFile("cursor-atomic-explore"),
+    skillFile("cursor-atomic-plan"),
+    skillFile("cursor-atomic-status"),
   ];
   for (const file of files) {
     const body = await readFile(file, "utf8");
@@ -211,12 +210,12 @@ test("planner contract supports plan-review revise mode", async () => {
 
 test("command skills spawn the renamed agents", async () => {
   const prompts = {
-    [skillFile("matt-pocock-atomic-explore")]: ["explorer"],
-    [skillFile("matt-pocock-atomic-plan")]: ["planner", "tasker", "worker", "reviewer"],
-    [skillFile("matt-pocock-atomic-task")]: ["tasker"],
-    [skillFile("matt-pocock-atomic-execute")]: ["worker", "reviewer"],
-    [skillFile("matt-pocock-atomic-review")]: ["reviewer"],
-    [skillFile("matt-pocock-atomic-delegate")]: ["worker"],
+    [skillFile("cursor-atomic-explore")]: ["explorer"],
+    [skillFile("cursor-atomic-plan")]: ["planner", "tasker", "worker", "reviewer"],
+    [skillFile("cursor-atomic-task")]: ["tasker"],
+    [skillFile("cursor-atomic-execute")]: ["worker", "reviewer"],
+    [skillFile("cursor-atomic-review")]: ["reviewer"],
+    [skillFile("cursor-atomic-delegate")]: ["worker"],
   };
   for (const [file, agents] of Object.entries(prompts)) {
     const body = await readFile(file, "utf8");
@@ -229,17 +228,6 @@ test("command skills spawn the renamed agents", async () => {
   }
 });
 
-test("settings example keys are unique and match agents", async () => {
-  const raw = await readFile("settings.example.json", "utf8");
-  const parsed = JSON.parse(raw);
-  const keys = Object.keys(parsed.subagents.agentOverrides);
-  assert.equal(new Set(keys).size, keys.length, "agentOverrides must not contain duplicate names");
-  for (const name of Object.keys(workflowAgents)) {
-    assert.ok(keys.includes(name), `settings.example.json must include ${name}`);
-    assert.ok(!keys.includes(`g-${name}`), `settings.example.json must not keep g-${name}`);
-  }
-});
-
 test("documentation matches bundled behavior", async () => {
   const readme = await readFile("README.md", "utf8");
   assert.doesNotMatch(readme, /npx skills add mattpocock/, "README must not instruct to run npx skills add in installation instructions (except as historical context)");
@@ -248,7 +236,7 @@ test("documentation matches bundled behavior", async () => {
 
 test("command skill directories use package-prefixed slash names", async () => {
   const dirs = (await readdir(SKILLS))
-    .filter((name) => name.startsWith("matt-pocock-atomic-") && name !== "matt-pocock-atomic-workflow")
+    .filter((name) => name.startsWith("cursor-atomic-") && name !== "cursor-atomic-workflow")
     .sort();
   assert.deepEqual(dirs, COMMAND_SKILLS);
 });
@@ -415,7 +403,7 @@ test("run-done extracts errorTail on command timeout", async () => {
 });
 
 test("pipeline recovery CONTEXT glossary", async () => {
-  const context = await readFile(join(SKILLS, "matt-pocock-atomic-workflow", "CONTEXT.md"), "utf8");
+  const context = await readFile(join(SKILLS, "cursor-atomic-workflow", "CONTEXT.md"), "utf8");
 
   // 리뷰 재작업
   assert.match(context, /## 리뷰 재작업/, "CONTEXT.md must have section '## 리뷰 재작업'");
@@ -428,7 +416,7 @@ test("pipeline recovery CONTEXT glossary", async () => {
   assert.match(context, /실패한 항목만 재시도/, "CONTEXT.md must specify retrying only failed items");
   assert.match(context, /이미 \[x\]는 유지/, "CONTEXT.md must specify keeping already checked items");
   assert.match(context, /재시도 시작 때 그 항목의 `막힘:`만 지운다/, "CONTEXT.md must specify clearing 막힘: before retry");
-  assert.match(context, /입구는 `?\/matt-pocock-atomic-execute`?/, "CONTEXT.md must specify entrypoint as /matt-pocock-atomic-execute");
+  assert.match(context, /입구는 `?\/cursor-atomic-execute`?/, "CONTEXT.md must specify entrypoint as /cursor-atomic-execute");
 
   // 사람 게이트
   assert.match(context, /## 사람 게이트/, "CONTEXT.md must have section '## 사람 게이트'");
@@ -442,29 +430,27 @@ test("pipeline recovery CONTEXT glossary", async () => {
 });
 
 test("pipeline recovery reference bash", async () => {
-  const reference = await readFile(join(SKILLS, "matt-pocock-atomic-workflow", "reference.md"), "utf8");
+  const reference = await readFile(join(SKILLS, "cursor-atomic-workflow", "reference.md"), "utf8");
 
   // Cursor / PowerShell 블록 유지 및 분리 라벨
   assert.match(reference, /Cursor.*PowerShell/i, "reference.md must separate and label Cursor/PowerShell");
   assert.match(reference, /\$repoRoot = git rev-parse --show-toplevel/, "reference.md must retain PowerShell worktree snippet");
   assert.match(reference, /Get-Date -Format "yyyy-MM-dd"/, "reference.md must retain PowerShell evidence snippet");
 
-  // Pi bash 워크트리 스니펫
-  assert.match(reference, /Pi.*(?:bash)/i, "reference.md must have Pi (bash) section");
-  assert.match(reference, /git rev-parse --show-toplevel/, "reference.md Pi bash must use git rev-parse");
-  assert.match(reference, /\.\.\/\$repoName-\$slug/, "reference.md Pi bash must use ../$repoName-$slug");
-  assert.match(reference, /feat\/\$slug/, "reference.md Pi bash must use feat/$slug");
-  assert.match(reference, /이미 있으면.*재사용/, "reference.md Pi bash must state reusing worktree if already exists");
+  assert.match(reference, /### bash/, "reference.md must have a bash worktree section");
+  assert.match(reference, /git rev-parse --show-toplevel/, "reference.md bash must use git rev-parse");
+  assert.match(reference, /\.\.\/\$repoName-\$slug/, "reference.md bash must use ../$repoName-$slug");
+  assert.match(reference, /feat\/\$slug/, "reference.md bash must use feat/$slug");
+  assert.match(reference, /이미 있으면.*재사용/, "reference.md bash must state reusing worktree if already exists");
 
-  // Pi bash 증거 아카이브
-  assert.match(reference, /date \+%Y-%m-%d/, "reference.md Pi bash must use date +%Y-%m-%d");
-  assert.match(reference, /\$HOME\/\.matt-pocock-workflow\/evidence\/|\$HOME\/\.pi\/agent\/matt-pocock-atomic-workflow\/evidence\//, "reference.md Pi bash must archive to evidence directory");
-  assert.match(reference, /\.docs\/<slug>/, "reference.md Pi bash must mention .docs/<slug>");
-  assert.match(reference, /원본은.*남긴다/, "reference.md Pi bash must state original is kept");
+  assert.match(reference, /date \+%Y-%m-%d/, "reference.md bash must use date +%Y-%m-%d");
+  assert.match(reference, /\$HOME\/\.cursor-atomic-workflow\/evidence\//, "reference.md bash must archive to evidence directory");
+  assert.match(reference, /\.docs\/<slug>/, "reference.md bash must mention .docs/<slug>");
+  assert.match(reference, /원본은.*남긴다/, "reference.md bash must state original is kept");
 });
 
 test("pipeline recovery SKILL orchestration", async () => {
-  const skill = await readFile(skillFile("matt-pocock-atomic-workflow"), "utf8");
+  const skill = await readFile(skillFile("cursor-atomic-workflow"), "utf8");
 
   // 사람 게이트 불변
   assert.match(skill, /사람 게이트는.*PLAN.*Phase 1.*만|사람 게이트는 \*\*PLAN뿐\*\*이다/, "SKILL.md must state human gate is PLAN(Phase 1) only");
@@ -479,18 +465,18 @@ test("pipeline recovery SKILL orchestration", async () => {
   assert.match(skill, /실패한 항목만 재시도/, "SKILL.md must specify retrying only failed items");
   assert.match(skill, /이미 \[x\]는 유지/, "SKILL.md must specify keeping already checked items");
   assert.match(skill, /재시도 시작 때 그 항목의 `막힘:`만 지운다/, "SKILL.md must specify clearing 막힘: at start of retry");
-  assert.match(skill, /입구는 `?\/matt-pocock-atomic-execute`?/, "SKILL.md must specify entrypoint as /matt-pocock-atomic-execute");
+  assert.match(skill, /입구는 `?\/cursor-atomic-execute`?/, "SKILL.md must specify entrypoint as /cursor-atomic-execute");
 
   // Status 다음 커맨드 execute 안내
-  assert.match(skill, /막힘.*\/matt-pocock-atomic-execute/, "SKILL.md Status must guide to /matt-pocock-atomic-execute when blocked");
+  assert.match(skill, /막힘.*\/cursor-atomic-execute/, "SKILL.md Status must guide to /cursor-atomic-execute when blocked");
 
   // 멈추는 경우에 회복 명시
   assert.match(skill, /멈추는 경우:[\s\S]*?막힘 재개[\s\S]*?리뷰 재작업/, "SKILL.md 멈추는 경우 must reference recovery policies");
 });
 
 test("pipeline recovery workers and testing", async () => {
-  const workers = await readFile(join(SKILLS, "matt-pocock-atomic-workflow", "workers.md"), "utf8");
-  const testing = await readFile(join(SKILLS, "matt-pocock-atomic-workflow", "testing.md"), "utf8");
+  const workers = await readFile(join(SKILLS, "cursor-atomic-workflow", "workers.md"), "utf8");
+  const testing = await readFile(join(SKILLS, "cursor-atomic-workflow", "testing.md"), "utf8");
 
   for (const [file, content] of [["workers.md", workers], ["testing.md", testing]]) {
     // 1회 / 한 번
@@ -498,7 +484,7 @@ test("pipeline recovery workers and testing", async () => {
     // 막힘 재개
     assert.match(content, /막힘 재개/, `${file} must mention 막힘 재개`);
     // execute 재입구
-    assert.match(content, /\/matt-pocock-atomic-execute/, `${file} must mention /matt-pocock-atomic-execute`);
+    assert.match(content, /\/cursor-atomic-execute/, `${file} must mention /cursor-atomic-execute`);
     // flake retry 없음
     assert.match(content, /flake retry 없음/, `${file} must mention flake retry 없음`);
     // 사람 게이트
@@ -507,17 +493,17 @@ test("pipeline recovery workers and testing", async () => {
 });
 
 test("pipeline recovery command skills", async () => {
-  const execute = await readFile(skillFile("matt-pocock-atomic-execute"), "utf8");
-  const review = await readFile(skillFile("matt-pocock-atomic-review"), "utf8");
-  const status = await readFile(skillFile("matt-pocock-atomic-status"), "utf8");
-  const commit = await readFile(skillFile("matt-pocock-atomic-wrapup"), "utf8");
+  const execute = await readFile(skillFile("cursor-atomic-execute"), "utf8");
+  const review = await readFile(skillFile("cursor-atomic-review"), "utf8");
+  const status = await readFile(skillFile("cursor-atomic-status"), "utf8");
+  const commit = await readFile(skillFile("cursor-atomic-wrapup"), "utf8");
 
   // execute prompt recovery policy
   assert.match(execute, /막힘 재개/, "execute.md must mention 막힘 재개");
   assert.match(execute, /실패한 항목만 재시도/, "execute.md must specify retrying only failed items");
   assert.match(execute, /이미 \[x\]는 유지/, "execute.md must specify keeping already checked items");
   assert.match(execute, /재시도 시작 때 그 항목의 `?막힘:`?만 지운다/, "execute.md must specify clearing 막힘: at start of retry");
-  assert.match(execute, /\/matt-pocock-atomic-execute/, "execute.md must mention entrypoint /matt-pocock-atomic-execute");
+  assert.match(execute, /\/cursor-atomic-execute/, "execute.md must mention entrypoint /cursor-atomic-execute");
   assert.match(execute, /사람 게이트.*PLAN.*Phase 1.*만|사람 게이트는.*PLAN.*만/, "execute.md must state human gate is PLAN(Phase 1) only");
   assert.match(execute, /막힘 재개는 정책으로 자동/, "execute.md must state block resume is automated by policy");
 
@@ -529,21 +515,21 @@ test("pipeline recovery command skills", async () => {
   assert.match(review, /flake retry 없음/, "review.md must specify no flake retry");
   assert.match(review, /사람 게이트.*PLAN.*Phase 1.*만|사람 게이트는.*PLAN.*만/, "review.md must state human gate is PLAN(Phase 1) only");
 
-  // status prompt recovery policy and Pi bash paths
-  assert.match(status, /막힘.*\/matt-pocock-atomic-execute/, "status.md must guide to /matt-pocock-atomic-execute when blocked");
-  assert.match(status, /~\/\.matt-pocock-workflow\/runs\//, "status.md must guide global runs path");
+  // status prompt recovery policy and bash paths
+  assert.match(status, /막힘.*\/cursor-atomic-execute/, "status.md must guide to /cursor-atomic-execute when blocked");
+  assert.match(status, /~\/\.cursor-atomic-workflow\/runs\//, "status.md must guide global runs path");
   assert.match(status, /PowerShell|%USERPROFILE%/, "status.md must retain Cursor PowerShell block/path");
 
-  assert.match(commit, /~\/\.matt-pocock-workflow\/evidence\//, "commit.md must guide global evidence path");
+  assert.match(commit, /~\/\.cursor-atomic-workflow\/evidence\//, "commit.md must guide global evidence path");
   assert.match(commit, /PowerShell|%USERPROFILE%/, "commit.md must retain Cursor PowerShell block/path");
 });
 
 test("pipeline recovery reviewer agent", async () => {
-  const reviewer = await readFile(join(".cursor", "agents", "matt-pocock-atomic-reviewer.md"), "utf8");
+  const reviewer = await readFile(join(".cursor", "agents", "cursor-atomic-reviewer.md"), "utf8");
 
   // 직접 리뷰어 및 CLI 디스패치 금지
   assert.match(reviewer, /직접 리뷰어/, "reviewer.md must state package reviewer is direct reviewer");
-  assert.match(reviewer, /(?:agy|pi|codex).*디스패치하지 말 것|디스패치.*금지/, "reviewer.md must forbid CLI dispatch");
+  assert.match(reviewer, /(?:agy|codex).*디스패치하지 말 것|디스패치.*금지/, "reviewer.md must forbid CLI dispatch");
   assert.match(reviewer, /invoke-worker 금지/, "reviewer.md must forbid invoke-worker");
 
   // Fresh 검증
@@ -564,23 +550,23 @@ test("pipeline recovery reviewer agent", async () => {
 
 test("bugbot review parent contract docs", async () => {
   const routing = await readFile(
-    join(SKILLS, "matt-pocock-atomic-workflow", "references", "routing.md"),
+    join(SKILLS, "cursor-atomic-workflow", "references", "routing.md"),
     "utf8"
   );
   const harness = await readFile(
-    join(SKILLS, "matt-pocock-atomic-workflow", "references", "harness.md"),
+    join(SKILLS, "cursor-atomic-workflow", "references", "harness.md"),
     "utf8"
   );
   const context = await readFile(
-    join(SKILLS, "matt-pocock-atomic-workflow", "CONTEXT.md"),
+    join(SKILLS, "cursor-atomic-workflow", "CONTEXT.md"),
     "utf8"
   );
   const reference = await readFile(
-    join(SKILLS, "matt-pocock-atomic-workflow", "reference.md"),
+    join(SKILLS, "cursor-atomic-workflow", "reference.md"),
     "utf8"
   );
   const reviewer = await readFile(
-    join(".cursor", "agents", "matt-pocock-atomic-reviewer.md"),
+    join(".cursor", "agents", "cursor-atomic-reviewer.md"),
     "utf8"
   );
 
@@ -609,29 +595,29 @@ test("bugbot review parent contract docs", async () => {
 
 test("plan-review parent contract docs", async () => {
   const routing = await readFile(
-    join(SKILLS, "matt-pocock-atomic-workflow", "references", "routing.md"),
+    join(SKILLS, "cursor-atomic-workflow", "references", "routing.md"),
     "utf8"
   );
   const harness = await readFile(
-    join(SKILLS, "matt-pocock-atomic-workflow", "references", "harness.md"),
+    join(SKILLS, "cursor-atomic-workflow", "references", "harness.md"),
     "utf8"
   );
   const context = await readFile(
-    join(SKILLS, "matt-pocock-atomic-workflow", "CONTEXT.md"),
+    join(SKILLS, "cursor-atomic-workflow", "CONTEXT.md"),
     "utf8"
   );
   const reference = await readFile(
-    join(SKILLS, "matt-pocock-atomic-workflow", "reference.md"),
+    join(SKILLS, "cursor-atomic-workflow", "reference.md"),
     "utf8"
   );
-  const skill = await readFile(skillFile("matt-pocock-atomic-workflow"), "utf8");
+  const skill = await readFile(skillFile("cursor-atomic-workflow"), "utf8");
   const models = await readFile(
-    join(SKILLS, "matt-pocock-atomic-workflow", "models.md"),
+    join(SKILLS, "cursor-atomic-workflow", "models.md"),
     "utf8"
   );
-  const doctor = await readFile(skillFile("matt-pocock-atomic-doctor"), "utf8");
-  const config = await readFile(skillFile("matt-pocock-atomic-config"), "utf8");
-  const modelsCmd = await readFile(skillFile("matt-pocock-atomic-models"), "utf8");
+  const doctor = await readFile(skillFile("cursor-atomic-doctor"), "utf8");
+  const config = await readFile(skillFile("cursor-atomic-config"), "utf8");
+  const modelsCmd = await readFile(skillFile("cursor-atomic-models"), "utf8");
   const readme = await readFile("README.md", "utf8");
   const readmeKr = await readFile("README.kr.md", "utf8");
 

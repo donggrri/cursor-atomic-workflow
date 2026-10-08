@@ -13,22 +13,22 @@ import { install, parseInstallArgs, findLegacyCursorCommands } from "../scripts/
 import { checkAgents } from "../scripts/check-agents.mjs";
 
 const SKILLS = ".cursor/skills";
-const WORKFLOW = "matt-pocock-atomic-workflow";
+const WORKFLOW = "cursor-atomic-workflow";
 
 const COMMANDS = [
-  "matt-pocock-atomic-config",
-  "matt-pocock-atomic-delegate",
-  "matt-pocock-atomic-doctor",
-  "matt-pocock-atomic-execute",
-  "matt-pocock-atomic-explore",
-  "matt-pocock-atomic-models",
-  "matt-pocock-atomic-plan",
-  "matt-pocock-atomic-review",
-  "matt-pocock-atomic-run",
-  "matt-pocock-atomic-settings",
-  "matt-pocock-atomic-status",
-  "matt-pocock-atomic-task",
-  "matt-pocock-atomic-wrapup",
+  "cursor-atomic-config",
+  "cursor-atomic-delegate",
+  "cursor-atomic-doctor",
+  "cursor-atomic-execute",
+  "cursor-atomic-explore",
+  "cursor-atomic-models",
+  "cursor-atomic-plan",
+  "cursor-atomic-review",
+  "cursor-atomic-run",
+  "cursor-atomic-settings",
+  "cursor-atomic-status",
+  "cursor-atomic-task",
+  "cursor-atomic-wrapup",
 ];
 
 async function read(rel) {
@@ -52,7 +52,7 @@ test("command skills are user-invoked only and reference harness.md", async () =
     assert.match(text, /disable-model-invocation:\s*true/, `${rel} must set disable-model-invocation`);
     assert.equal(validateSkillFrontmatter(text, rel).valid, true, `${rel} frontmatter must be YAML safe`);
     assert.match(text, /# \//, `${rel} must title the slash command`);
-    if (!["matt-pocock-atomic-settings", "matt-pocock-atomic-doctor"].includes(name)) {
+    if (!["cursor-atomic-settings", "cursor-atomic-doctor"].includes(name)) {
       assert.match(text, /harness\.md|references\/harness\.md/, `${name} must defer harness details`);
     }
   }
@@ -74,7 +74,7 @@ test("installer copies skills and agents into a target project", async () => {
   const target = await mkdtemp(join(tmpdir(), "cursor-install-"));
   try {
     await mkdir(join(target, ".cursor", "commands"), { recursive: true });
-    await writeFile(join(target, ".cursor", "commands", "matt-pocock-atomic-plan.md"), "# /old\n");
+    await writeFile(join(target, ".cursor", "commands", "cursor-atomic-plan.md"), "# /old\n");
 
     const res = await install({ root: ".", target, force: false });
     assert.ok(res.copied.length > 0 || res.skipped.length > 0);
@@ -87,7 +87,7 @@ test("installer copies skills and agents into a target project", async () => {
       "agents must be installed",
     );
     assert.equal(existsSync(join(target, ".cursor", "agents", "reviewer.md")), false);
-    assert.ok(existsSync(join(target, ".cursor", "agents", "matt-pocock-atomic-reviewer.md")));
+    assert.ok(existsSync(join(target, ".cursor", "agents", "cursor-atomic-reviewer.md")));
 
     const legacy = await findLegacyCursorCommands(target);
     assert.equal(legacy.length, 1);
@@ -122,9 +122,9 @@ test("doctor skips bundle sync check outside the package repo", async () => {
   }
 });
 
-test("all matt-pocock-atomic command skill directories exist", async () => {
+test("all cursor-atomic command skill directories exist", async () => {
   const names = (await readdir(SKILLS))
-    .filter((n) => n.startsWith("matt-pocock-atomic-") && n !== WORKFLOW)
+    .filter((n) => n.startsWith("cursor-atomic-") && n !== WORKFLOW)
     .sort();
   assert.deepEqual(names, COMMANDS);
 });

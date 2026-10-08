@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { getWorkflowRoot } from "../work-status.mjs";
 
 export const DEFAULT_PROFILE_ID = "atomic";
-export const PROJECT_SETTINGS_FILE = ".matt-pocock-workflow.json";
+export const PROJECT_SETTINGS_FILE = ".cursor-atomic-workflow.json";
 export const GLOBAL_SETTINGS_FILE = "settings.json";
 
 const SSH_LINE =
@@ -76,7 +76,7 @@ function readProfileSetting(filePath, label, fs) {
 }
 
 /**
- * CLI, then project `.matt-pocock-workflow.json`, then global settings, then atomic.
+ * CLI, then project `.cursor-atomic-workflow.json`, then global settings, then atomic.
  *
  * @param {{
  *   cliProfile?: string | null,

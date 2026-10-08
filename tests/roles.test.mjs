@@ -23,7 +23,7 @@ import { checkAgents } from "../scripts/check-agents.mjs";
 
 const repoRoot = join(fileURLToPath(new URL("..", import.meta.url)));
 const agentsDir = join(repoRoot, ".cursor", "agents");
-const skillDir = join(repoRoot, ".cursor", "skills", "matt-pocock-atomic-workflow");
+const skillDir = join(repoRoot, ".cursor", "skills", "cursor-atomic-workflow");
 const harnessPath = join(skillDir, "references", "harness.md");
 const skillPath = join(skillDir, "SKILL.md");
 
@@ -103,8 +103,8 @@ test("getRole returns all eight pipeline roles and throws for unknown keys", () 
   assert.throws(() => getRole("not-a-role"), /Unknown role: not-a-role/);
 });
 
-test("agentFileName maps reviewer to matt-pocock-atomic-reviewer.md", () => {
-  assert.equal(agentFileName("reviewer"), "matt-pocock-atomic-reviewer.md");
+test("agentFileName maps reviewer to cursor-atomic-reviewer.md", () => {
+  assert.equal(agentFileName("reviewer"), "cursor-atomic-reviewer.md");
   assert.equal(agentFileName("worker"), "worker.md");
 });
 
@@ -154,11 +154,9 @@ test("checkAgents rejects reviewer frontmatter in worker model family", () => {
   const { tmp, dir } = copyAgentsDirToTemp();
   try {
     const reviewerFile = join(dir, agentFileName("reviewer"));
-    setAgentFrontmatterModel(reviewerFile, "composer-2.5");
-    assert.equal(
-      modelFamily("composer-2.5"),
-      modelFamily(getRole("worker").taskModel),
-    );
+    const workerModel = getRole("worker").taskModel;
+    setAgentFrontmatterModel(reviewerFile, workerModel);
+    assert.equal(modelFamily(workerModel), modelFamily(getRole("worker").taskModel));
     const { ok, problems } = checkAgents({ dir });
     assert.equal(ok, false);
     assert.ok(

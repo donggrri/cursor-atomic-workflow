@@ -2,10 +2,12 @@
 
 # cursor-atomic-workflow
 
-Cursor용 atomic explore → plan → task → execute → review 워크플로 (SDK 러너 + Task 서브에이전트).
-`/matt-pocock-atomic-explore`(선택) → `/matt-pocock-atomic-plan` → `/matt-pocock-atomic-task` → `/matt-pocock-atomic-execute` → `/matt-pocock-atomic-review` → `/matt-pocock-atomic-wrapup`
+표시 이름은 Cursor SDK workflow(`cursor-sdk`)다. 기술 식별자는 `cursor-atomic-*`다.
 
-슬래시 커맨드는 upstream 워크플로의 `matt-pocock-atomic-` 접두사를 유지하지만, 패키지 자체는 **Cursor 전용**이다.
+Cursor용 atomic explore → plan → task → execute → review 워크플로 (SDK 러너 + Task 서브에이전트).
+`/cursor-atomic-explore`(선택) → `/cursor-atomic-plan` → `/cursor-atomic-task` → `/cursor-atomic-execute` → `/cursor-atomic-review` → `/cursor-atomic-wrapup`
+
+슬래시 커맨드는 upstream 워크플로의 `cursor-atomic-` 접두사를 유지하지만, 패키지 자체는 **Cursor 전용**이다.
 
 ---
 
@@ -17,7 +19,7 @@ Cursor용 atomic explore → plan → task → execute → review 워크플로 (
 4. [자동 파이프라인 러너](#4-자동-파이프라인-러너)
 5. [단계별 모델](#5-단계별-모델)
 6. [하지 말 것](#6-하지-말-것)
-7. [번들된 matt-pocock 스킬](#7-번들된-matt-pocock-스킬)
+7. [번들된 업스트림 스킬](#7-번들된-업스트림-스킬)
 8. [패키지 유지보수](#8-패키지-유지보수)
 9. [추후 과제](#9-추후-과제)
 
@@ -29,11 +31,10 @@ Cursor용 atomic explore → plan → task → execute → review 워크플로 (
 
 | 구성 요소 | 위치 | 역할 |
 |---|---|---|
-| 커맨드 스킬 | `.cursor/skills/matt-pocock-atomic-<이름>/SKILL.md` | 하나하나가 슬래시 커맨드(`/matt-pocock-atomic-plan` 등)이며 커맨드 로직을 담는다 |
-| 워크플로 스킬 | `.cursor/skills/matt-pocock-atomic-workflow/` | 오케스트레이션 문서(`CONTEXT.md`, `reference.md`, `workers.md`, `testing.md`, `models.md`), Cursor 하네스 어댑터(`references/harness.md`), `work-status.mjs` / `run-done.mjs` 번들 복사본 |
-| 서브에이전트 | `.cursor/agents/*.md` | 에이전트 8종: `explorer`, `planner`, `plan-reviewer`, `tasker`, `worker`, `matt-pocock-atomic-reviewer`, `tester`, `cli-delegate` |
+| 커맨드 스킬 | `.cursor/skills/cursor-atomic-<이름>/SKILL.md` | 하나하나가 슬래시 커맨드(`/cursor-atomic-plan` 등)이며 커맨드 로직을 담는다 |
+| 워크플로 스킬 | `.cursor/skills/cursor-atomic-workflow/` | 오케스트레이션 문서(`CONTEXT.md`, `reference.md`, `workers.md`, `testing.md`, `models.md`), Cursor 하네스 어댑터(`references/harness.md`), `work-status.mjs` / `run-done.mjs` 번들 복사본 |
+| 서브에이전트 | `.cursor/agents/*.md` | 에이전트 8종: `explorer`, `planner`, `plan-reviewer`, `tasker`, `worker`, `cursor-atomic-reviewer`, `tester`, `cli-delegate` |
 | 러너 스크립트 | `scripts/` | `install.mjs`, `run-pipeline.mjs`, `doctor.mjs`, `check-agents.mjs`, `work-status.mjs`, `run-done.mjs`, `lib/` |
-| 설정 참고 | `settings.example.json` | Pi 스타일 `subagents.agentOverrides` 참고 파일(`/matt-pocock-atomic-config init`이 사용) |
 
 Node `>=22.13` 필요. `@cursor/sdk`는 패키지 루트의 optional dependency로 파이프라인 러너의 SDK 어댑터를 구동한다.
 
@@ -63,7 +64,7 @@ node scripts/install.mjs --target /path/to/project
 node scripts/install.mjs --target /path/to/project --force --set-model worker=composer-2.5
 ```
 
-예전 설치가 남긴 `.cursor/commands/matt-pocock-atomic-*.md`가 있으면 지운다. 이제 커맨드 스킬이 같은 슬래시 커맨드를 제공하므로, 둘 다 두면 커맨드가 두 번씩 보인다. 설치 스크립트와 `doctor`가 해당 파일을 알려 준다.
+예전 설치가 남긴 `.cursor/commands/cursor-atomic-*.md`가 있으면 지운다. 이제 커맨드 스킬이 같은 슬래시 커맨드를 제공하므로, 둘 다 두면 커맨드가 두 번씩 보인다. 설치 스크립트와 `doctor`가 해당 파일을 알려 준다.
 
 설치 상태는 언제든 확인할 수 있다:
 
@@ -76,26 +77,26 @@ node scripts/check-agents.mjs  # .cursor/agents 모델이 scripts/lib/roles.mjs�
 
 ## 3. 사용법
 
-기본: **PLAN만 확정하면** 러너가 **plan-review**(PLAN 비판 검토) → task → execute → review를 자동 실행한다. 커밋은 `/matt-pocock-atomic-wrapup`일 때만.
+기본: **PLAN만 확정하면** 러너가 **plan-review**(PLAN 비판 검토) → task → execute → review를 자동 실행한다. 커밋은 `/cursor-atomic-wrapup`일 때만.
 
 | 커맨드 | 역할 | 산출물 |
 |---|---|---|
-| `/matt-pocock-atomic-explore` | Phase 0: 코드베이스 및 기술 사전 탐색 (선택) | `~/.matt-pocock-workflow/docs/{shortRepo}/{slug}/EXPLORE-<slug>.md` (레거시: `.docs/<slug>/`) |
-| `/matt-pocock-atomic-plan` | Phase 1 후 기본 파이프라인 | `~/.matt-pocock-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md` + 자동으로 TASKS/코드/REVIEW |
-| `/matt-pocock-atomic-task` | Phase 2만 강제하거나 이어서 자동 | `~/.matt-pocock-workflow/docs/{shortRepo}/{slug}/TASKS-<slug>.md` |
-| `/matt-pocock-atomic-execute` | Phase 3만 강제하거나 이어서 자동 | 코드 변경 + 체크된 TASKS |
-| `/matt-pocock-atomic-delegate` | Phase 3: 특정 워커에 위임 | 같음 |
-| `/matt-pocock-atomic-review` | Phase 4 | `~/.matt-pocock-workflow/docs/{shortRepo}/{slug}/REVIEW-<slug>.md` |
-| `/matt-pocock-atomic-wrapup` | Phase 5: 마무리 (커밋, 푸시 없음) | git commit + STATUS |
-| `/matt-pocock-atomic-run` | 명시적 파이프라인 진입: 트리아지를 건너뛰고 explore부터 실행 | plan과 같음 |
-| `/matt-pocock-atomic-status` | 진행 상황 보고 (`npm run status` / `STATUS.json`) | 텍스트 요약 / 테이블 |
-| `/matt-pocock-atomic-config` | 워크플로 모델/스킬 설정 관리 (`/matt-pocock-atomic-settings`) | 텍스트/대화형 설정 |
-| `/matt-pocock-atomic-models` | 모델 설정 안내 (읽기 전용) | 텍스트 안내 |
-| `/matt-pocock-atomic-doctor` | 스킬 충돌, YAML frontmatter 문법 진단 및 자동 교정(Auto-fix) | 진단 리포트 / 자동 교정 |
+| `/cursor-atomic-explore` | Phase 0: 코드베이스 및 기술 사전 탐색 (선택) | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/EXPLORE-<slug>.md` (레거시: `.docs/<slug>/`) |
+| `/cursor-atomic-plan` | Phase 1 후 기본 파이프라인 | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md` + 자동으로 TASKS/코드/REVIEW |
+| `/cursor-atomic-task` | Phase 2만 강제하거나 이어서 자동 | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/TASKS-<slug>.md` |
+| `/cursor-atomic-execute` | Phase 3만 강제하거나 이어서 자동 | 코드 변경 + 체크된 TASKS |
+| `/cursor-atomic-delegate` | Phase 3: 특정 워커에 위임 | 같음 |
+| `/cursor-atomic-review` | Phase 4 | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/REVIEW-<slug>.md` |
+| `/cursor-atomic-wrapup` | Phase 5: 마무리 (커밋, 푸시 없음) | git commit + STATUS |
+| `/cursor-atomic-run` | 명시적 파이프라인 진입: 트리아지를 건너뛰고 explore부터 실행 | plan과 같음 |
+| `/cursor-atomic-status` | 진행 상황 보고 (`npm run status` / `STATUS.json`) | 텍스트 요약 / 테이블 |
+| `/cursor-atomic-config` | 워크플로 모델/스킬 설정 관리 (`/cursor-atomic-settings`) | 텍스트/대화형 설정 |
+| `/cursor-atomic-models` | 모델 설정 안내 (읽기 전용) | 텍스트 안내 |
+| `/cursor-atomic-doctor` | 스킬 충돌, YAML frontmatter 문법 진단 및 자동 교정(Auto-fix) | 진단 리포트 / 자동 교정 |
 
-산출물은 `~/.matt-pocock-workflow/docs/{shortRepo}/{slug}/` 아래에 쌓인다 (`MATT_POCOCK_WORKFLOW_HOME`으로 홈을 바꿀 수 있다).
+산출물은 `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/` 아래에 쌓인다 (`CURSOR_ATOMIC_WORKFLOW_HOME`으로 홈을 바꿀 수 있다).
 
-PLAN에 막힌 질문(보안·범위·데이터 손실)이 있으면 거기서 멈춘다. 계획만 쓰려면 `/matt-pocock-atomic-plan 계획만`.
+PLAN에 막힌 질문(보안·범위·데이터 손실)이 있으면 거기서 멈춘다. 계획만 쓰려면 `/cursor-atomic-plan 계획만`.
 
 ---
 
@@ -107,10 +108,10 @@ PLAN에 막힌 질문(보안·범위·데이터 손실)이 있으면 거기서 �
 node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-card] [--profile <id>] [--repo <dir>] [--dry-run]
 ```
 
-- `--adapter sdk`(기본)는 `@cursor/sdk`로 Cursor Task 서브에이전트를 구동한다. SDK가 없으면 `--adapter task-card`로 떨어져 종료코드 `10`으로 멈추고, 부모 세션이 실행할 `next-card.json`을 남긴다. 이후 `--resume`한다. cost-gate 뒤 **plan-review**가 `plan-reviewer`를 실행해 `PLAN-REVIEW-<slug>.md`를 쓰고, 차단 결함은 planner 1회 자동 수정·재검토 후에도 남으면 종료코드 `20`으로 멈춘다. **Review** 진입(초기·재작업 후)마다 종료코드 `10`이 **`kind: "bugbot"`** 선행 검토 카드일 수 있다. 부모가 Cursor `bugbot`을 실행하고 `~/.matt-pocock-workflow/runs/{shortRepo}/{slug}/bugbot-findings.md`에 결과를 저장(실패 시 `# BUGBOT_FAILED` 마커)한 뒤 `--resume`하고 reviewer가 이어진다.
-- 로그는 `~/.matt-pocock-workflow/runs/{shortRepo}/{slug}/pipeline.log`에 쌓이고, 단계별 커맨드 로그 옆에는 `.done.json` 요약이 생긴다. SDK 어댑터는 역할마다 `▶ [phase] role started · model=…` / `■ [phase] role done · N s`와 하위 서브에이전트·상태 줄을 남긴다(`tail -f pipeline.log`로 진행 확인). `ATOMIC_PROGRESS=tools`를 주면 툴 호출도 남긴다.
+- `--adapter sdk`(기본)는 `@cursor/sdk`로 Cursor Task 서브에이전트를 구동한다. SDK가 없으면 `--adapter task-card`로 떨어져 종료코드 `10`으로 멈추고, 부모 세션이 실행할 `next-card.json`을 남긴다. 이후 `--resume`한다. cost-gate 뒤 **plan-review**가 `plan-reviewer`를 실행해 `PLAN-REVIEW-<slug>.md`를 쓰고, 차단 결함은 planner 1회 자동 수정·재검토 후에도 남으면 종료코드 `20`으로 멈춘다. **Review** 진입(초기·재작업 후)마다 종료코드 `10`이 **`kind: "bugbot"`** 선행 검토 카드일 수 있다. 부모가 Cursor `bugbot`을 실행하고 `~/.cursor-atomic-workflow/runs/{shortRepo}/{slug}/bugbot-findings.md`에 결과를 저장(실패 시 `# BUGBOT_FAILED` 마커)한 뒤 `--resume`하고 reviewer가 이어진다.
+- 로그는 `~/.cursor-atomic-workflow/runs/{shortRepo}/{slug}/pipeline.log`에 쌓이고, 단계별 커맨드 로그 옆에는 `.done.json` 요약이 생긴다. SDK 어댑터는 역할마다 `▶ [phase] role started · model=…` / `■ [phase] role done · N s`와 하위 서브에이전트·상태 줄을 남긴다(`tail -f pipeline.log`로 진행 확인). `ATOMIC_PROGRESS=tools`를 주면 툴 호출도 남긴다.
 - `--resume`은 실패한 항목만 재시도한다(이미 체크된 항목은 유지).
-- `--profile <id>`는 plan·test 지침만 바꾼다. 생략하면 프로젝트 `.matt-pocock-workflow.json`의 `profile`, 그다음 `~/.matt-pocock-workflow/settings.json`의 `profile`, 없으면 `atomic`이다. PLAN·TASKS·REVIEW는 그대로 `~/.matt-pocock-workflow/docs/{shortRepo}/{slug}/`에 둔다. 프로필 JSON은 패키지 `profiles/<id>.json`, `~/.matt-pocock-workflow/profiles/<id>.json`, 저장소 `profiles/<id>.json` 순으로 찾고 나중 위치가 이긴다. JSON에 시크릿을 넣지 않는다. 포함된 `bsp` 프로필은 `~/edge_bsp_foundation`의 명령 파일을 가리킨다.
+- `--profile <id>`는 plan·test 지침만 바꾼다. 생략하면 프로젝트 `.cursor-atomic-workflow.json`의 `profile`, 그다음 `~/.cursor-atomic-workflow/settings.json`의 `profile`, 없으면 `atomic`이다. PLAN·TASKS·REVIEW는 그대로 `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/`에 둔다. 프로필 JSON은 패키지 `profiles/<id>.json`, `~/.cursor-atomic-workflow/profiles/<id>.json`, 저장소 `profiles/<id>.json` 순으로 찾고 나중 위치가 이긴다. JSON에 시크릿을 넣지 않는다. 포함된 `bsp` 프로필은 `~/edge_bsp_foundation`의 명령 파일을 가리킨다.
 
 종료 코드:
 
@@ -132,14 +133,14 @@ node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-car
 
 | 역할 | subagent_type | Task 모델 |
 |---|---|---|
-| explorer | `explorer` | `composer-2.5` |
+| explorer | `explorer` | `grok-4.7-high` |
 | planner | `planner` | `claude-opus-5-5-high` |
 | plan-reviewer | `plan-reviewer` | `grok-4.7-high` |
-| tasker | `tasker` | `composer-2.5` |
-| worker | `worker` | `composer-2.5` |
-| reviewer | `matt-pocock-atomic-reviewer` | `grok-4.7-xhigh` (폴백 `claude-sonnet-5-5-high`) |
-| tester | `tester` | `composer-2.5` |
-| cli-delegate | `cli-delegate` | `composer-2.5` |
+| tasker | `tasker` | `grok-4.7-high` |
+| worker | `worker` | `grok-4.7-high` |
+| reviewer | `cursor-atomic-reviewer` | `claude-sonnet-5-5-high` |
+| tester | `tester` | `grok-4.7-high` |
+| cli-delegate | `cli-delegate` | `grok-4.7-high` |
 
 모델을 바꾸려면 에이전트 frontmatter를 고치고 `scripts/lib/roles.mjs`와 맞춰 둔다(`check-agents`가 일치하지 않으면 실패한다). 또는 설치 때 `--set-model <agent>=<model>`(여러 번 가능)로 고정한다.
 
@@ -149,24 +150,24 @@ node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-car
 
 - **푸시 금지**: `git push`는 직접 원할 때만. 에이전트는 푸시하지 않는다.
 - **비밀 금지**: 토큰·API 키·`.env`를 커밋하거나 워커 브리프에 넣지 않는다.
-- **Cursor 전용**: 이 패키지는 Cursor 프로젝트에만 설치된다. Pi·OpenCode·Claude Code·Codex는 설정하지 않는다.
+- **Cursor 전용**: 이 패키지는 Cursor 프로젝트에만 설치된다. OpenCode·Claude Code·Codex는 설정하지 않는다.
 - **설치된 패키지 파일 함부로 편집 금지**: 설치된 `.cursor/agents/*.md`와 스킬은 `--force` 재설치와 패키지 업데이트에 덮여쓰인다. 변경은 이 저장소에 하고 재설치한다.
 
 ---
 
-## 7. 번들된 matt-pocock 스킬
+## 7. 번들된 업스트림 스킬
 
 이 패키지를 설치하면 아래 스킬도 함께 설치되어 바로 발견된다. 별도 스킬 매니저 설정이 필요 없다.
 
 | 단계 | 실행 주체 | 강제 스킬 |
 |---|---|---|
 | plan preflight | 부모 오케스트레이터 | `grilling`, `domain-modeling`, `codebase-design`, `wayfinder` |
-| plan | `planner` | 같은 스킬 + `matt-pocock-atomic-workflow` |
+| plan | `planner` | 같은 스킬 + `cursor-atomic-workflow` |
 | task | `tasker` | `to-tickets` (산출물은 `TASKS-<slug>.md`) |
 | execute | `worker` | `tdd` |
 | review | `reviewer` | `code-review` (손자 없이 두 축) |
 
-`grill-me`와 `wayfinder`는 upstream에서 `disable-model-invocation: true`인 사용자 호출용 orchestrator다. 따라서 `/matt-pocock-atomic-plan`은 `grill-me`가 위임하는 model-invoked `grilling`을 부모 단계에서 직접 읽고 실행한다. 큰 작업은 기본적으로 tracker 없는 `local-wayfinding`으로 분류하며, upstream `wayfinder` tracker 흐름은 사용자가 명시한 경우에만 사용한다.
+`grill-me`와 `wayfinder`는 upstream에서 `disable-model-invocation: true`인 사용자 호출용 orchestrator다. 따라서 `/cursor-atomic-plan`은 `grill-me`가 위임하는 model-invoked `grilling`을 부모 단계에서 직접 읽고 실행한다. 큰 작업은 기본적으로 tracker 없는 `local-wayfinding`으로 분류하며, upstream `wayfinder` tracker 흐름은 사용자가 명시한 경우에만 사용한다.
 
 번들 snapshot의 원본 저장소, revision, MIT 라이선스는 `THIRD_PARTY_LICENSES/mattpocock-skills-*`에 기록되어 있다. upstream을 갱신할 때는 선정 디렉터리를 함께 갱신하고 `npm test`로 에이전트 참조를 검증한다.
 
@@ -178,17 +179,17 @@ node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-car
 
 | 바꿀 것 | 고칠 파일 |
 |---|---|
-| 커맨드 동작 | `.cursor/skills/matt-pocock-atomic-<이름>/SKILL.md` |
+| 커맨드 동작 | `.cursor/skills/cursor-atomic-<이름>/SKILL.md` |
 | 에이전트 역할 / 단계 모델 | `.cursor/agents/<에이전트>.md` (+ `scripts/lib/roles.mjs`) |
-| 하네스 차이 | `.cursor/skills/matt-pocock-atomic-workflow/references/harness.md` |
-| 워크플로 스크립트 | `scripts/work-status.mjs`, `scripts/run-done.mjs` — `.cursor/skills/matt-pocock-atomic-workflow/scripts/`의 복사본과 동일하게 유지 |
+| 하네스 차이 | `.cursor/skills/cursor-atomic-workflow/references/harness.md` |
+| 워크플로 스크립트 | `scripts/work-status.mjs`, `scripts/run-done.mjs` — `.cursor/skills/cursor-atomic-workflow/scripts/`의 복사본과 동일하게 유지 |
 
 ```bash
 npm test                    # 구조·에이전트·산출물 경로·번들 스크립트 동기화 테스트
 node scripts/doctor.mjs     # 충돌, YAML frontmatter, 동기화·설치 상태 점검
 ```
 
-커맨드를 추가하려면 `disable-model-invocation: true`와 "사용자가 직접 호출할 때만 쓴다."로 끝나는 description을 넣어 `.cursor/skills/matt-pocock-atomic-<이름>/SKILL.md`를 만들고 `npm test`를 실행한다.
+커맨드를 추가하려면 `disable-model-invocation: true`와 "사용자가 직접 호출할 때만 쓴다."로 끝나는 description을 넣어 `.cursor/skills/cursor-atomic-<이름>/SKILL.md`를 만들고 `npm test`를 실행한다.
 
 ---
 

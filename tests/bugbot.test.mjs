@@ -97,7 +97,7 @@ function expectedPrompt(pass) {
   return [
     `Full Repository Path: ${REPO_ROOT}`,
     "Diff: branch changes",
-    `Custom Instructions: matt-pocock-atomic-workflow slug ${SLUG}, review pass ${pass}. Spec: PLAN ${PLAN_PATH}, TASKS ${TASKS_PATH}. Report only concrete bugs in the branch changes.`,
+    `Custom Instructions: cursor-atomic-workflow slug ${SLUG}, review pass ${pass}. Spec: PLAN ${PLAN_PATH}, TASKS ${TASKS_PATH}. Report only concrete bugs in the branch changes.`,
   ].join("\n");
 }
 

@@ -5,14 +5,14 @@ import { getRole } from "../roles.mjs";
 
 /** @type {Record<string, string[]>} */
 const ROLE_SKILL_DIRS = {
-  explorer: ["matt-pocock-atomic-workflow"],
-  planner: ["matt-pocock-atomic-workflow", "codebase-design", "grilling"],
-  "plan-reviewer": ["matt-pocock-atomic-workflow", "codebase-design", "tdd"],
-  tasker: ["matt-pocock-atomic-workflow", "to-tickets"],
-  worker: ["matt-pocock-atomic-workflow", "tdd"],
-  reviewer: ["matt-pocock-atomic-workflow", "code-review"],
-  tester: ["matt-pocock-atomic-workflow", "tdd", "codebase-design"],
-  "cli-delegate": ["matt-pocock-atomic-workflow"],
+  explorer: ["cursor-atomic-workflow"],
+  planner: ["cursor-atomic-workflow", "codebase-design", "grilling"],
+  "plan-reviewer": ["cursor-atomic-workflow", "codebase-design", "tdd"],
+  tasker: ["cursor-atomic-workflow", "to-tickets"],
+  worker: ["cursor-atomic-workflow", "tdd"],
+  reviewer: ["cursor-atomic-workflow", "code-review"],
+  tester: ["cursor-atomic-workflow", "tdd", "codebase-design"],
+  "cli-delegate": ["cursor-atomic-workflow"],
 };
 
 /**
@@ -39,7 +39,7 @@ export function resolveSkillPath(repoRoot, skillName, options = {}) {
  * @param {{ homeDir?: string, exists?: (path: string) => boolean }} [options]
  */
 function formatPrompt(repoRoot, role, body, options) {
-  const dirs = ROLE_SKILL_DIRS[role] ?? ["matt-pocock-atomic-workflow"];
+  const dirs = ROLE_SKILL_DIRS[role] ?? ["cursor-atomic-workflow"];
   const skillLines = dirs.map((name) => resolveSkillPath(repoRoot, name, options));
   const tail = (body ?? "").trim();
   return tail ? `${skillLines.join("\n")}\n${tail}` : skillLines.join("\n");

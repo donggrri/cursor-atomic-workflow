@@ -20,7 +20,7 @@
  *   now,            // optional ISO string for timestamps (overrides clock when writing state)
  * }) -> Promise<{ exitCode: number, state: object }>
  *
- * Fixture layout (workflowHome = MATT_POCOCK_WORKFLOW_HOME or docsHome/../):
+ * Fixture layout (workflowHome = CURSOR_ATOMIC_WORKFLOW_HOME or docsHome/../):
  *   docsHome/<shortRepo>/<slug>/PLAN-<slug>.md
  *   docsHome/<shortRepo>/<slug>/TASKS-<slug>.md
  *   docsHome/<shortRepo>/<slug>/REVIEW-<slug>.md
@@ -159,14 +159,14 @@ function taskLineChecked(tasksText, taskId) {
 
 async function withHome(fn) {
   const home = mkdtempSync(join(tmpdir(), "pipeline-wf-"));
-  const orig = process.env.MATT_POCOCK_WORKFLOW_HOME;
-  process.env.MATT_POCOCK_WORKFLOW_HOME = home;
+  const orig = process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
+  process.env.CURSOR_ATOMIC_WORKFLOW_HOME = home;
   try {
     await fn(home);
   } finally {
     rmSync(home, { recursive: true, force: true });
-    if (orig !== undefined) process.env.MATT_POCOCK_WORKFLOW_HOME = orig;
-    else delete process.env.MATT_POCOCK_WORKFLOW_HOME;
+    if (orig !== undefined) process.env.CURSOR_ATOMIC_WORKFLOW_HOME = orig;
+    else delete process.env.CURSOR_ATOMIC_WORKFLOW_HOME;
   }
 }
 
@@ -1585,7 +1585,7 @@ test("19 task-card 스킬 경로 — 저장소 파일이 있을 때만 그 경�
       repoRoot,
       ".cursor",
       "skills",
-      "matt-pocock-atomic-workflow",
+      "cursor-atomic-workflow",
       "SKILL.md",
     );
     const repoTickets = join(repoRoot, ".cursor", "skills", "to-tickets", "SKILL.md");
@@ -1594,7 +1594,7 @@ test("19 task-card 스킬 경로 — 저장소 파일이 있을 때만 그 경�
       skillHome,
       ".cursor",
       "skills",
-      "matt-pocock-atomic-workflow",
+      "cursor-atomic-workflow",
       "SKILL.md",
     );
     mkdirSync(join(repoWorkflow, ".."), { recursive: true });
@@ -1631,7 +1631,7 @@ test("19 task-card 스킬 경로 — 저장소 파일이 있을 때만 그 경�
       emptyRepo,
       ".cursor",
       "skills",
-      "matt-pocock-atomic-workflow",
+      "cursor-atomic-workflow",
       "SKILL.md",
     );
     assert.ok(cardEmpty.prompt.includes(homeWorkflow));

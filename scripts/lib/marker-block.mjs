@@ -1,5 +1,5 @@
-const BEGIN = "<!-- matt-pocock-atomic-workflow:begin -->";
-const END = "<!-- matt-pocock-atomic-workflow:end -->";
+const BEGIN = "<!-- cursor-atomic-workflow:begin -->";
+const END = "<!-- cursor-atomic-workflow:end -->";
 
 /** @param {string} body */
 function wrapBlock(body) {
@@ -69,12 +69,12 @@ function assertMarkerConsistency(text) {
   }
 
   if (beginCount !== 1 || endCount !== 1) {
-    throw new Error("mismatched matt-pocock-atomic-workflow markers");
+    throw new Error("mismatched cursor-atomic-workflow markers");
   }
 
   const block = findWellFormedBlock(text);
   if (!block) {
-    throw new Error("mismatched matt-pocock-atomic-workflow markers");
+    throw new Error("mismatched cursor-atomic-workflow markers");
   }
 
   return { kind: "one", block };

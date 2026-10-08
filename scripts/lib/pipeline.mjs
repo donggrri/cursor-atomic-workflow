@@ -18,7 +18,7 @@ import {
   testerStep,
 } from "./profiles.mjs";
 
-const CLI_DELEGATE_WORKERS = new Set(["agy", "pi", "opencode", "codex", "claude"]);
+const CLI_DELEGATE_WORKERS = new Set(["agy", "opencode", "codex", "claude"]);
 
 /**
  * @param {string} planText

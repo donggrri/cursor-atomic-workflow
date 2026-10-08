@@ -16,7 +16,7 @@ export const BUNDLED_SKILLS = [
   "wayfinder"
 ];
 
-export const WORKFLOW_SKILL = "matt-pocock-atomic-workflow";
+export const WORKFLOW_SKILL = "cursor-atomic-workflow";
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SKILLS_DIR = ".cursor/skills";
@@ -28,7 +28,7 @@ export async function listCommandSkills(root) {
   const dir = join(root, SKILLS_DIR);
   if (!existsSync(dir)) return [];
   return (await readdir(dir))
-    .filter((name) => name.startsWith("matt-pocock-atomic-") && name !== WORKFLOW_SKILL)
+    .filter((name) => name.startsWith("cursor-atomic-") && name !== WORKFLOW_SKILL)
     .sort();
 }
 
@@ -114,7 +114,6 @@ export async function checkCollisions(options = {}) {
   const home = homedir();
   const searchDirs = options.searchDirs || [
     join(home, ".agents", "skills"),
-    join(home, ".pi", "agent", "skills")
   ];
 
   const collisions = [];
@@ -142,73 +141,6 @@ export async function checkCollisions(options = {}) {
   }
 
   return collisions;
-}
-
-/**
- * settings.json의 패키지 필터를 확인하고 필요한 경우 수정한다.
- */
-export async function checkSettingsFilter(options = {}) {
-  const home = homedir();
-  const settingsPath = options.settingsPath || join(home, ".pi", "agent", "settings.json");
-
-  if (!existsSync(settingsPath)) {
-    return { exists: false, isFiltered: false, packageConfig: null };
-  }
-
-  try {
-    const raw = await readFile(settingsPath, "utf8");
-    const settings = JSON.parse(raw);
-    const packages = settings.packages || [];
-
-    for (const pkg of packages) {
-      if (typeof pkg === "string" && pkg.includes("matt-pocock-atomic-workflow")) {
-        return { exists: true, isFiltered: false, packageConfig: pkg, settings, settingsPath };
-      }
-      if (typeof pkg === "object" && pkg !== null && pkg.source && pkg.source.includes("matt-pocock-atomic-workflow")) {
-        const skills = pkg.skills;
-        const isFiltered = Array.isArray(skills) && skills.some(s => s.includes("matt-pocock-atomic-workflow") && !s.includes("./skills"));
-        return { exists: true, isFiltered, packageConfig: pkg, settings, settingsPath };
-      }
-    }
-
-    return { exists: true, isFiltered: false, packageConfig: null, settings, settingsPath };
-  } catch (err) {
-    return { exists: true, error: err.message, isFiltered: false, settingsPath };
-  }
-}
-
-/**
- * settings.json에 패키지 필터를 적용하여 스킬 충돌을 완화한다.
- */
-export async function fixSettingsFilter(options = {}) {
-  const check = await checkSettingsFilter(options);
-  if (!check.exists || !check.settings) return { success: false, reason: "settings.json not found" };
-
-  const settings = check.settings;
-  const packages = settings.packages || [];
-  let updated = false;
-
-  for (let i = 0; i < packages.length; i++) {
-    const pkg = packages[i];
-    const sourceStr = typeof pkg === "string" ? pkg : pkg.source;
-
-    if (sourceStr && sourceStr.includes("matt-pocock-atomic-workflow")) {
-      packages[i] = {
-        source: sourceStr,
-        skills: ["skills/matt-pocock-atomic-workflow"]
-      };
-      updated = true;
-      break;
-    }
-  }
-
-  if (!updated) {
-    return { success: false, reason: "package not found in settings.packages" };
-  }
-
-  settings.packages = packages;
-  await writeFile(check.settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf8");
-  return { success: true, settingsPath: check.settingsPath };
 }
 
 /**
@@ -324,27 +256,13 @@ export async function runDoctor(options = {}) {
 
   const results = {
     collisions: [],
-    settingsFilter: null,
     yamlIssues: [],
     harnessSync: null,
     harnessInstall: null,
     fixesApplied: []
   };
 
-  // 1. 스킬 충돌 점검
-  const collisions = await checkCollisions();
-  results.collisions = collisions;
-
-  const filterStatus = await checkSettingsFilter();
-  results.settingsFilter = filterStatus;
-
-  if (collisions.length > 0 && !filterStatus.isFiltered && doFix) {
-    const fixResult = await fixSettingsFilter();
-    if (fixResult.success) {
-      results.fixesApplied.push("Applied package skill filter to ~/.pi/agent/settings.json (resolved collisions)");
-      results.settingsFilter.isFiltered = true;
-    }
-  }
+  results.collisions = await checkCollisions();
 
   // 2. YAML frontmatter 검사 대상 수집
   const targetDirs = options.skillsDirs || [
@@ -400,7 +318,7 @@ if (process.argv[1] && process.argv[1].endsWith("doctor.mjs")) {
       return;
     }
 
-    console.log("=== matt-pocock-atomic-workflow Doctor ===\n");
+    console.log("=== cursor-atomic-workflow Doctor ===\n");
 
     // 1. 스킬 충돌 상태
     console.log("1. 스킬 충돌(Skill Collisions) 진단:");
@@ -411,14 +329,7 @@ if (process.argv[1] && process.argv[1].endsWith("doctor.mjs")) {
       for (const c of res.collisions) {
         console.log(`    - ${c.skill} (${c.foundIn})`);
       }
-      if (res.settingsFilter && res.settingsFilter.isFiltered) {
-        console.log("  ✓ settings.json에 패키지 필터가 설정되어 있어 Pi 기동 시 충돌 경고가 방지됩니다.");
-      } else {
-        console.log("  ✗ settings.json에 패키지 필터가 없습니다. (Pi 기동 시 [Skill conflicts] 경고 발생 가능)");
-        if (!isFix) {
-          console.log("    -> 'node scripts/doctor.mjs --fix' 를 실행하면 자동 필터링이 적용됩니다.");
-        }
-      }
+      console.log("  전역 복사본이 패키지 번들 스킬과 겹칩니다. 전역 폴더를 지우거나, 이 패키지 설치본만 쓰세요.");
     }
 
     console.log("\n2. 스킬 YAML Frontmatter 유효성 진단:");
@@ -451,7 +362,7 @@ if (process.argv[1] && process.argv[1].endsWith("doctor.mjs")) {
       if (hi.skillsInstalled) {
         console.log(`  ✓ 스킬 설치: ${hi.skillDirs.join(", ")} (커맨드 스킬 ${hi.commandSkills.length}/${hi.commandSkillsExpected})`);
       } else {
-        console.log("  - 현재 프로젝트에 `.cursor/skills/matt-pocock-atomic-workflow` 없음.");
+        console.log("  - 현재 프로젝트에 `.cursor/skills/cursor-atomic-workflow` 없음.");
       }
       const cursorAgents = hi.harnesses?.cursor?.agents;
       if (cursorAgents && (cursorAgents.found.length || cursorAgents.missing.length)) {
