@@ -525,13 +525,31 @@ test("6 비용 게이트 — exit 20 then auto or costAck+resume", async () => {
       "utf8"
     );
 
-    const resumed = await runPipelineWithBugbotParent(
+    const resumed = await runPipeline(
       pipelineOpts(repoRoot, home, {
         ...base,
         flags: { auto: false, resume: true, dryRun: false },
       })
     );
-    assert.equal(resumed.exitCode, 0);
+    assert.equal(resumed.exitCode, 20);
+    assert.equal(resumed.state.cursor.stage, "plan");
+    assert.equal(adapterCalls, 0);
+
+    writeFileSync(
+      join(paths.runsDir, "pipeline.json"),
+      JSON.stringify({
+        ...resumed.state,
+        agyChoice: { plan: "sdk", implement: "sdk", review: "sdk" },
+      }, null, 2),
+      "utf8"
+    );
+    const continued = await runPipelineWithBugbotParent(
+      pipelineOpts(repoRoot, home, {
+        ...base,
+        flags: { auto: false, resume: true, dryRun: false },
+      })
+    );
+    assert.equal(continued.exitCode, 0);
     assert.ok(adapterCalls > 0);
   });
 });
@@ -1774,5 +1792,97 @@ test("resume with a different --profile exits 2", async () => {
       })
     );
     assert.equal(result.exitCode, 2);
+  });
+});
+
+test("agy stage questions — plan, implement, review", async () => {
+  await withHome(async (home) => {
+    const { repoRoot, paths } = createFixture(home, {
+      pipelineJson: {
+        cursor: { phase: "plan-review" },
+        costAck: true,
+        reworkUsed: false,
+      },
+    });
+    const roles = [];
+    const adapter = adapterWithPlanReview(
+      {
+        async runRole({ role }) {
+          roles.push(role);
+          if (role === "reviewer") {
+            writeFileSync(
+              join(paths.docsDir, `REVIEW-${SLUG}.md`),
+              reviewMd("없음"),
+              "utf8"
+            );
+          }
+          return { ok: true, summary: "ok" };
+        },
+      },
+      paths
+    );
+    const base = {
+      adapter,
+      runDone: async () => ({ ok: true }),
+      statusSync: async () => {},
+    };
+    const resume = (json) => {
+      writeFileSync(join(paths.runsDir, "pipeline.json"), JSON.stringify(json, null, 2), "utf8");
+      return runPipeline(
+        pipelineOpts(repoRoot, home, {
+          ...base,
+          flags: { auto: false, resume: true, dryRun: false },
+        })
+      );
+    };
+
+    const planAsk = await resume({
+      cursor: { phase: "plan-review" },
+      costAck: true,
+      reworkUsed: false,
+    });
+    assert.equal(planAsk.exitCode, 20);
+    assert.equal(planAsk.state.cursor.phase, "agy-ask");
+    assert.equal(planAsk.state.cursor.stage, "plan");
+    assert.match(planAsk.state.cursor.question, /계획 단계입니다/);
+    assert.equal(roles.length, 0);
+
+    const implAsk = await resume({
+      ...planAsk.state,
+      agyChoice: { plan: "sdk" },
+    });
+    assert.equal(implAsk.exitCode, 20);
+    assert.equal(implAsk.state.cursor.stage, "implement");
+    assert.ok(roles.includes("plan-reviewer"));
+    assert.ok(roles.includes("tasker"));
+    assert.equal(roles.includes("worker"), false);
+
+    const delegated = await resume({
+      ...implAsk.state,
+      agyChoice: { ...implAsk.state.agyChoice, implement: "agy" },
+    });
+    assert.equal(delegated.exitCode, 10);
+    assert.equal(delegated.state.cursor.delegate, "agy");
+    assert.equal(delegated.state.cursor.stage, "implement");
+    assert.equal(delegated.state.cursor.taskId, "T1");
+
+    const second = await resume(delegated.state);
+    assert.equal(second.exitCode, 10);
+    assert.equal(second.state.cursor.taskId, "T2");
+    assert.equal(taskLineChecked(readTasks(home, repoRoot), "T1"), true);
+
+    const reviewAsk = await resume(second.state);
+    assert.equal(reviewAsk.exitCode, 20);
+    assert.equal(reviewAsk.state.cursor.stage, "review");
+    assert.match(reviewAsk.state.cursor.question, /리뷰 단계입니다/);
+
+    const reviewDelegate = await resume({
+      ...reviewAsk.state,
+      agyChoice: { ...reviewAsk.state.agyChoice, review: "agy" },
+    });
+    assert.equal(reviewDelegate.exitCode, 10);
+    assert.equal(reviewDelegate.state.cursor.stage, "review");
+    assert.equal(reviewDelegate.state.cursor.delegate, "agy");
+    assert.equal(roles.includes("reviewer"), false);
   });
 });

@@ -10,6 +10,7 @@ const SKILLS = ".cursor/skills";
 const skillFile = (name) => join(SKILLS, name, "SKILL.md");
 
 const COMMAND_SKILLS = [
+  "cursor-atomic-agy",
   "cursor-atomic-config",
   "cursor-atomic-delegate",
   "cursor-atomic-doctor",
@@ -210,6 +211,7 @@ test("planner contract supports plan-review revise mode", async () => {
 
 test("command skills spawn the renamed agents", async () => {
   const prompts = {
+    [skillFile("cursor-atomic-agy")]: ["cli-delegate"],
     [skillFile("cursor-atomic-explore")]: ["explorer"],
     [skillFile("cursor-atomic-plan")]: ["planner", "tasker", "worker", "reviewer"],
     [skillFile("cursor-atomic-task")]: ["tasker"],
@@ -239,6 +241,48 @@ test("command skill directories use package-prefixed slash names", async () => {
     .filter((name) => name.startsWith("cursor-atomic-") && name !== "cursor-atomic-workflow")
     .sort();
   assert.deepEqual(dirs, COMMAND_SKILLS);
+});
+
+test("agy command skill keeps headless delegate contract", async () => {
+  const file = skillFile("cursor-atomic-agy");
+  const body = await readFile(file, "utf8");
+  const meta = parseFrontmatter(body, file);
+  assert.equal(meta.name, "cursor-atomic-agy");
+  assert.equal(meta["disable-model-invocation"], "true");
+
+  const description = meta.description ?? "";
+  assert.match(description, /agy/, `${file} description must mention agy`);
+  assert.match(description, /headless|헤드리스/, `${file} description must mention headless or 헤드리스`);
+  assert.match(description, /plan/, `${file} description must mention plan`);
+  assert.match(description, /delegate/, `${file} description must mention delegate`);
+
+  const requiredPhrases = [
+    "invoke-worker",
+    "--worker agy",
+    "cli-delegate",
+    "plan",
+    "implement",
+    ".cursor/plans/agy-",
+    "git status --porcelain",
+    "git diff",
+    "run-done",
+    "다음 진행해",
+    "work-status.mjs",
+    "위임할까요",
+  ];
+  for (const phrase of requiredPhrases) {
+    assert.ok(body.includes(phrase), `${file} must mention ${phrase}`);
+  }
+
+  const forbidsCommitPush = body.includes("커밋·푸시하지 않는다")
+    || (/git commit/.test(body) && /git push/.test(body) && /금지/.test(body));
+  assert.ok(forbidsCommitPush, `${file} must forbid commit and push`);
+  assert.match(body, /bare/, `${file} must forbid a bare agy invocation`);
+  assert.doesNotMatch(body, /^\s*agy\s*$/m, `${file} must not contain a line that is only agy`);
+
+  const { validateSkillFrontmatter } = await import("../scripts/doctor.mjs");
+  const result = validateSkillFrontmatter(body, file);
+  assert.equal(result.valid, true, `${file} frontmatter must be valid: ${JSON.stringify(result.issues)}`);
 });
 
 test("bundled skills have valid frontmatter without unquoted colon mapping errors", async () => {

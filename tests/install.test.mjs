@@ -16,6 +16,7 @@ const SKILLS = ".cursor/skills";
 const WORKFLOW = "cursor-atomic-workflow";
 
 const COMMANDS = [
+  "cursor-atomic-agy",
   "cursor-atomic-config",
   "cursor-atomic-delegate",
   "cursor-atomic-doctor",

@@ -12,6 +12,7 @@ MUST: first read `cursor-atomic-workflow` skill and `workers.md`. Then read the 
 
 Rules:
 
+- If the prompt starts with `요청 위임: /cursor-atomic-agy`, there is no TASKS item and no PLAN. Use the prompt's request, brief path, log path, `--skills` value, and `CURSOR_ATOMIC_SKILL_ROOT` as given. Worker is `agy`. Scope is only that request.
 - Do only the assigned item. Do not expand scope.
 - Write the brief to `~/.cursor/cursor-atomic-workflow/runs/<slug>/<task-id>.brief.md` using the workers.md template (include MUST read skills block).
 - Invoke **only** `invoke-worker.sh` (bash) or `invoke-worker.ps1` (Windows) — never launch bare `agy` (TUI hang).

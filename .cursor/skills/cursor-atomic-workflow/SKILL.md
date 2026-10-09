@@ -2,7 +2,7 @@
 name: cursor-atomic-workflow
 description: >-
   Runs cursor-atomic-workflow phases (explore, plan, task, execute, review, commit, status, config).
-  Use when the user invokes /cursor-atomic-explore, /cursor-atomic-plan, /cursor-atomic-task, /cursor-atomic-execute, /cursor-atomic-delegate,
+  Use when the user invokes /cursor-atomic-explore, /cursor-atomic-plan, /cursor-atomic-task, /cursor-atomic-execute, /cursor-atomic-delegate, /cursor-atomic-agy,
   /cursor-atomic-review, /cursor-atomic-wrapup, /cursor-atomic-status, /cursor-atomic-config, /cursor-atomic-settings, or mentions cursor-atomic-workflow or cursor-atomic-workflow.
 ---
 
@@ -199,10 +199,11 @@ PLAN이 있고 막힌 질문(보안·범위·데이터 손실)이 없으면 부�
 
 1. 사용자가 워커를 지목했거나 TASKS에 `worker:`가 있으면 [workers.md](workers.md)를 읽는다. 기본 구현 워커는 Task `worker`.
 2. TASKS `worker:`가 `agy|opencode|codex|claude`이면 Task `cli-delegate`로 위임한다. `cli-delegate`는 `invoke-worker.sh`(bash) 또는 `invoke-worker.ps1`(Windows)만 실행한다. 부모는 bare `agy`를 직접 실행하지 않는다.
-3. 브리프 첫 줄에 강제 스킬 경로. 비밀·토큰·`.env` 금지.
-4. 워커가 끝나면 오케스트레이터가 `git diff`와 테스트를 직접 확인한다. 「완료」로그를 믿지 않는다.
-5. 워크트리당 쓰기 워커는 하나. 워커는 커밋·푸시하지 않는다.
-6. `agy`를 인자 없이 실행하지 않는다 (TUI 정지).
+3. TASKS가 아닌 사용자 요청(계획·코드 생성)을 agy 헤드리스로 넘길 때는 `/cursor-atomic-agy`(`plan` | `implement`)를 쓴다. `/cursor-atomic-agy 다음 진행해`는 상태를 읽은 뒤 다음 한 단계만 위임할지 묻고, 예일 때만 그 단계를 같은 `cli-delegate` + `invoke-worker --worker agy` 경로로 넘긴다. `--auto`가 아닌 러너는 계획·구현·리뷰 앞에서 종료코드 20으로 「이 단계를 agy로 실행할까요?」를 묻는다. 예이면 그 단계만 agy이고, 아니오이면 기존 SDK 역할이다. 처리 방법은 [references/routing.md](references/routing.md) 「agy 단계 질문」.
+4. 브리프 첫 줄에 강제 스킬 경로. 비밀·토큰·`.env` 금지.
+5. 워커가 끝나면 오케스트레이터가 `git diff`와 테스트를 직접 확인한다. 「완료」로그를 믿지 않는다.
+6. 워크트리당 쓰기 워커는 하나. 워커는 커밋·푸시하지 않는다.
+7. `agy`를 인자 없이 실행하지 않는다 (TUI 정지).
 
 ### Challenge / Simplify 선택적 루프 (중대 작업 시)
 

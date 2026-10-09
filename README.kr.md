@@ -86,6 +86,7 @@ node scripts/check-agents.mjs  # .cursor/agents 모델이 scripts/lib/roles.mjs�
 | `/cursor-atomic-task` | Phase 2만 강제하거나 이어서 자동 | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/TASKS-<slug>.md` |
 | `/cursor-atomic-execute` | Phase 3만 강제하거나 이어서 자동 | 코드 변경 + 체크된 TASKS |
 | `/cursor-atomic-delegate` | Phase 3: 특정 워커에 위임 | 같음 |
+| `/cursor-atomic-agy` | 사용자 요청을 agy 헤드리스로 위임 (plan: 계획 문서만, implement: 코드 생성) | .cursor/plans/ 계획 파일 또는 코드 변경 |
 | `/cursor-atomic-review` | Phase 4 | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/REVIEW-<slug>.md` |
 | `/cursor-atomic-wrapup` | Phase 5: 마무리 (커밋, 푸시 없음) | git commit + STATUS |
 | `/cursor-atomic-run` | 명시적 파이프라인 진입: 트리아지를 건너뛰고 explore부터 실행 | plan과 같음 |

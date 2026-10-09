@@ -75,7 +75,7 @@
 | **0** | 완료(tester 통과) | 한국어로 결과 보고, `/cursor-atomic-wrapup` 안내 |
 | **2** | 사용법/전제 오류(PLAN·brief 없음, `--adapter sdk`인데 import 실패 등) | 오류 요약 보고 |
 | **10** | 부모 행동 필요(bugbot 선행 검토 카드, task-card 역할 카드, 또는 cli-delegate 항목) | `next-card.json`의 `kind === "bugbot"`(또는 `pipeline.json`의 `bugbot.status === "pending"`)이면 아래 「bugbot 카드」를 **먼저** 탄다. cli-delegate는 그 항목만 위임 후 `--resume`. 그 외 task-card는 아래 「task-card와 세션 역할」(plan-reviewer·planner revise 카드 포함) |
-| **20** | 사람 게이트(PLAN 막힌 질문, 비용 확인, **plan-review 차단 결함** 등) | 질문을 모아 한 번에 묻고 답 반영 후 `--resume`. plan-review에서 멈춘 경우 PLAN-REVIEW `## 계획 결함`을 보여 주고 PLAN에 반영하거나 「계획 정제」에 수용 기록 후 `--resume`(자동 수정 1회는 이미 소진된 상태) |
+| **20** | 사람 게이트(PLAN 막힌 질문, 비용 확인, **plan-review 차단 결함**, **agy 단계 질문**) | 질문을 모아 한 번에 묻고 답 반영 후 `--resume`. `cursor.phase === "agy-ask"`이면 아래 「agy 단계 질문」. plan-review에서 멈춘 경우 PLAN-REVIEW `## 계획 결함`을 보여 주고 PLAN에 반영하거나 「계획 정제」에 수용 기록 후 `--resume`(자동 수정 1회는 이미 소진된 상태) |
 | **30** | 항목 `done` 실패(`막힘:`) 또는 **plan-review 단계 실패**(PLAN-REVIEW 없음·형식 불량 등) | worker 막힘이면 보고 후 `--resume` 또는 `/cursor-atomic-execute`. plan-review 30이면 `--resume`으로 같은 라운드 재시도 |
 | **40** | 리뷰 재작업 1회 후에도 결함 | 보고 후 멈춤 |
 | **50** | 에이전트 시작 실패(인증·네트워크 등, 1회 재시도 후) | 세션에 `tasker`, `planner`, `plan-reviewer`, `worker`, `cursor-atomic-reviewer`가 모두 있으면 `--adapter task-card --resume`. 하나라도 없으면 task-card로 바꾸지 않고 시작 실패를 보고한다 |
@@ -90,6 +90,15 @@
 2. 다섯 역할 중 하나라도 없거나 카드의 `subagent_type`이 목록에 없으면 Task를 실행하지 않는다. 없는 `subagent_type`을 다른 역할로 바꾸지 않는다. 같은 슬러그를 `--adapter sdk --resume`로 다시 실행한다.
 
 cli-delegate 항목으로 나온 종료코드 10은 이 분기를 타지 않는다. `explore`, `coder`, `reviewer`처럼 다른 타입이 목록에 있어도 빠진 역할을 그 타입으로 대체하지 않는다.
+
+### agy 단계 질문
+
+`--auto`가 아니면 러너는 계획 검토 앞, 구현 루프 앞, 리뷰 앞에서 한 번씩 멈추고 종료코드 **20**을 낸다. `pipeline.json`의 `cursor.phase`는 `agy-ask`이고, `cursor.stage`는 `plan` | `implement` | `review`이다. `cursor.question`을 그대로 예/아니오로 묻는다.
+
+- 예: `agyChoice.<stage>`를 `"agy"`로 기록하고 `--resume`
+- 아니오: `agyChoice.<stage>`를 `"sdk"`로 기록하고 `--resume`
+
+예이면 그 단계만 agy다. 러너는 종료코드 **10**으로 멈추고 `cursor.delegate`는 `"agy"`, `cursor.stage`는 같은 단계다. 부모는 `cli-delegate`로 그 단계만 위임한 뒤 `--resume`한다. 계획이면 PLAN을 갱신한다. 구현이면 `taskId` 한 항목이고, 재개 후 러너가 `done`을 검사한다. 리뷰이면 agy가 `REVIEW-<slug>.md`를 쓴다. bugbot과 `cursor-atomic-reviewer`는 그 선택을 따르지 않는다. 아니오이면 그 단계는 기존 SDK 역할로 간다. 다음 단계 앞에서 다시 묻는다.
 
 ### bugbot 카드
 

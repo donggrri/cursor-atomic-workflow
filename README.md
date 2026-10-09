@@ -86,6 +86,7 @@ Default: once **PLAN is confirmed**, the pipeline runner runs **plan-review** (c
 | `/cursor-atomic-task` | Force Phase 2 only, or continue automatically | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/TASKS-<slug>.md` |
 | `/cursor-atomic-execute` | Force Phase 3 only, or continue automatically | code changes + checked-off TASKS |
 | `/cursor-atomic-delegate` | Phase 3: delegate to a specific worker | same |
+| `/cursor-atomic-agy` | Delegate a user request to agy headless (plan: plan doc only, implement: code) | plan file under .cursor/plans/ or code changes |
 | `/cursor-atomic-review` | Phase 4 | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/REVIEW-<slug>.md` |
 | `/cursor-atomic-wrapup` | Phase 5: wrapup (commit, no push) | git commit + STATUS |
 | `/cursor-atomic-run` | Explicit pipeline entry: skip triage and run the workflow from explore | same as plan |

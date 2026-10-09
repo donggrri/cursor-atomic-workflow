@@ -24,6 +24,34 @@ const CLI_DELEGATE_WORKERS = new Set(["agy", "opencode", "codex", "claude"]);
  * @param {string} planText
  * @returns {boolean} true if blocked (must exit 20)
  */
+const AGY_STAGE_LABEL = {
+  plan: "계획",
+  implement: "구현",
+  review: "리뷰",
+};
+
+/**
+ * @param {string} stage
+ * @returns {string}
+ */
+export function agyStageQuestion(stage) {
+  const label = AGY_STAGE_LABEL[stage] ?? stage;
+  return `지금은 ${label} 단계입니다. 이 단계를 agy로 실행할까요?`;
+}
+
+/**
+ * @param {object} state
+ * @param {string} stage
+ * @param {{ auto?: boolean }} flags
+ * @returns {"agy"|"sdk"|null}
+ */
+function agyDecision(state, stage, flags) {
+  if (flags.auto) return "sdk";
+  const value = state.agyChoice?.[stage];
+  if (value === "agy" || value === "sdk") return value;
+  return null;
+}
+
 export function planHasBlockedQuestions(planText) {
   const m = planText.match(/##\s*막힌\s*질문\s*\n([\s\S]*?)(?:\n##|$)/i);
   if (!m) return false;
@@ -295,6 +323,28 @@ export async function runPipeline(opts) {
   state.profile = profile.id;
   emit(`profile: ${profile.id}`);
 
+  if (flags.resume && state.cursor?.delegate === "agy" && state.cursor?.stage === "plan") {
+    state.agyDone = { ...(state.agyDone ?? {}), plan: true };
+    state.cursor = { phase: "plan-review" };
+    state.agyAsk = null;
+  } else if (flags.resume && state.cursor?.delegate === "agy" && state.cursor?.stage === "review") {
+    state.agyDone = { ...(state.agyDone ?? {}), review: true };
+    state.cursor = { phase: "reviewer" };
+    state.agyAsk = null;
+  } else if (
+    flags.resume &&
+    state.cursor?.delegate &&
+    state.cursor?.stage === "implement" &&
+    state.cursor?.taskId
+  ) {
+    state.cursor = {
+      phase: "execute",
+      taskId: state.cursor.taskId,
+      agyHandback: state.cursor.taskId,
+    };
+    state.agyAsk = null;
+  }
+
   if (flags.dryRun) {
     const next = state.cursor?.phase ?? "blocked-gate";
     log(`dry-run: next phase ${next}`);
@@ -355,6 +405,24 @@ export async function runPipeline(opts) {
     return { ok: false, exitCode: 50 };
   }
 
+  async function stopForAgyAsk(stage, resumePhase) {
+    const question = agyStageQuestion(stage);
+    state.cursor = { phase: "agy-ask", stage, resumePhase, question };
+    state.agyAsk = { stage, question, resumePhase };
+    saveState(paths, state, opts);
+    await syncAfter({ statusSync }, slug);
+    emit(`agy-ask: ${stage}`);
+    return { exitCode: 20, state };
+  }
+
+  async function stopForAgyDelegate(cursor) {
+    state.cursor = cursor;
+    state.agyAsk = null;
+    saveState(paths, state, opts);
+    await syncAfter({ statusSync }, slug);
+    return { exitCode: 10, state };
+  }
+
   // --- blocked questions gate ---
   if (!state.costAck && !flags.auto && state.cursor?.phase === "blocked-gate") {
     // will run blocked check below
@@ -384,6 +452,27 @@ export async function runPipeline(opts) {
 
   let cursorPhase = state.cursor?.phase ?? "tasker";
 
+  if (phase === "agy-ask") {
+    const stage = state.cursor.stage;
+    const decision = agyDecision(state, stage, flags);
+    if (!decision) {
+      saveState(paths, state, opts);
+      await syncAfter({ statusSync }, slug);
+      return { exitCode: 20, state };
+    }
+    state.agyChoice = { ...(state.agyChoice ?? {}), [stage]: decision };
+    if (decision === "agy" && stage === "plan" && !state.agyDone?.plan) {
+      return stopForAgyDelegate({ phase: "plan-review", delegate: "agy", stage: "plan" });
+    }
+    if (decision === "agy" && stage === "review" && !state.agyDone?.review) {
+      return stopForAgyDelegate({ phase: "reviewer", delegate: "agy", stage: "review" });
+    }
+    state.cursor = { phase: state.cursor.resumePhase ?? "plan-review" };
+    state.agyAsk = null;
+    saveState(paths, state, opts);
+    cursorPhase = state.cursor.phase;
+  }
+
   if (
     flags.resume &&
     cursorPhase === "cost-gate" &&
@@ -406,6 +495,13 @@ export async function runPipeline(opts) {
   }
 
   if (cursorPhase === "plan-review" || state.cursor?.phase === "plan-review") {
+    const planDecision = agyDecision(state, "plan", flags);
+    if (planDecision === null && !state.agyDone?.plan) {
+      return stopForAgyAsk("plan", "plan-review");
+    }
+    if (planDecision === "agy" && !state.agyDone?.plan) {
+      return stopForAgyDelegate({ phase: "plan-review", delegate: "agy", stage: "plan" });
+    }
     const gateResult = await planReviewGate({
       planReview: state.planReview ?? {},
       slug,
@@ -466,6 +562,13 @@ export async function runPipeline(opts) {
     let tasksText = readFileSync(tasksPath, "utf8");
     let tasks = parseTasksMarkdown(tasksText);
     const ordered = orderTasks(tasks);
+    const hasOpen = ordered.some((task) => {
+      const current = parseTasksMarkdown(tasksText).find((item) => item.id === task.id);
+      return current && !current.checked;
+    });
+    if (hasOpen && agyDecision(state, "implement", flags) === null) {
+      return stopForAgyAsk("implement", "execute");
+    }
 
     const resumeTaskId = flags.resume ? state.cursor?.taskId : null;
     let started = !resumeTaskId;
@@ -485,8 +588,40 @@ export async function runPipeline(opts) {
         writeFileSync(tasksPath, tasksText, "utf8");
       }
 
-      if (CLI_DELEGATE_WORKERS.has(task.worker)) {
-        state.cursor = { phase: "execute", taskId: task.id, delegate: task.worker };
+      const implementAgy = agyDecision(state, "implement", flags) === "agy";
+      const handback = state.cursor?.agyHandback === task.id;
+      if (handback) {
+        state.cursor = { phase: "execute", taskId: task.id };
+        const handed = await runDone({
+          taskId: task.id,
+          command: task.done,
+          cwd: repoRoot,
+        });
+        await syncAfter({ statusSync }, slug);
+        if (!handed.ok) {
+          tasksText = readFileSync(tasksPath, "utf8");
+          tasksText = addBlockedLine(tasksText, task.id, handed.message || "done command failed");
+          writeFileSync(tasksPath, tasksText, "utf8");
+          state.cursor = { phase: "execute", taskId: task.id };
+          saveState(paths, state, opts);
+          await syncAfter({ statusSync }, slug);
+          return { exitCode: 30, state };
+        }
+        tasksText = readFileSync(tasksPath, "utf8");
+        tasksText = setTaskChecked(tasksText, task.id, true);
+        writeFileSync(tasksPath, tasksText, "utf8");
+        state.cursor = { phase: "execute", taskId: task.id };
+        saveState(paths, state, opts);
+        await syncAfter({ statusSync }, slug);
+        continue;
+      }
+      if (implementAgy || CLI_DELEGATE_WORKERS.has(task.worker)) {
+        state.cursor = {
+          phase: "execute",
+          taskId: task.id,
+          delegate: implementAgy ? "agy" : task.worker,
+          ...(implementAgy ? { stage: "implement" } : {}),
+        };
         saveState(paths, state, opts);
         await syncAfter({ statusSync }, slug);
         return { exitCode: 10, state };
@@ -541,6 +676,23 @@ export async function runPipeline(opts) {
   }
 
   if (state.cursor?.phase === "reviewer" || cursorPhase === "reviewer") {
+    const reviewDecision = agyDecision(state, "review", flags);
+    if (reviewDecision === null && !state.agyDone?.review) {
+      return stopForAgyAsk("review", "reviewer");
+    }
+    if (reviewDecision === "agy" && !state.agyDone?.review) {
+      return stopForAgyDelegate({ phase: "reviewer", delegate: "agy", stage: "review" });
+    }
+    let reviewText = "";
+    if (reviewDecision === "agy") {
+      reviewText = existsSync(reviewPath) ? readFileSync(reviewPath, "utf8") : "";
+      if (!reviewText.trim()) {
+        emit("agy review: REVIEW file missing");
+        return { exitCode: 30, state };
+      }
+      state.cursor = { phase: "reviewer" };
+      saveState(paths, state, opts);
+    } else {
     const reviewPass = state.reworkUsed ? 2 : 1;
     const gate = bugbotGate({
       bugbot: state.bugbot ?? {},
@@ -575,7 +727,8 @@ export async function runPipeline(opts) {
       return { exitCode: 30, state };
     }
 
-    let reviewText = existsSync(reviewPath) ? readFileSync(reviewPath, "utf8") : "";
+    reviewText = existsSync(reviewPath) ? readFileSync(reviewPath, "utf8") : "";
+    }
     if (reviewHasDefects(reviewText)) {
       if (!state.reworkUsed) {
         state.reworkUsed = true;
@@ -603,8 +756,14 @@ export async function runPipeline(opts) {
           const current = parseTasksMarkdown(tasksText2).find((t) => t.id === task.id);
           if (!current || current.checked) continue;
 
-          if (CLI_DELEGATE_WORKERS.has(task.worker)) {
-            state.cursor = { phase: "execute", taskId: task.id, delegate: task.worker };
+          const reworkAgy = agyDecision(state, "implement", flags) === "agy";
+          if (reworkAgy || CLI_DELEGATE_WORKERS.has(task.worker)) {
+            state.cursor = {
+              phase: "execute",
+              taskId: task.id,
+              delegate: reworkAgy ? "agy" : task.worker,
+              ...(reworkAgy ? { stage: "implement" } : {}),
+            };
             saveState(paths, state, opts);
             await syncAfter({ statusSync }, slug);
             return { exitCode: 10, state };
@@ -638,6 +797,11 @@ export async function runPipeline(opts) {
           tasksText2 = setTaskChecked(tasksText2, task.id, true);
           writeFileSync(tasksPath, tasksText2, "utf8");
           await syncAfter({ statusSync }, slug);
+        }
+
+        if (agyDecision(state, "review", flags) === "agy") {
+          state.agyDone = { ...(state.agyDone ?? {}), review: false };
+          return stopForAgyDelegate({ phase: "reviewer", delegate: "agy", stage: "review" });
         }
 
         state.cursor = { phase: "reviewer" };
