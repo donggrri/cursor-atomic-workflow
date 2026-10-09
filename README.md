@@ -200,4 +200,15 @@ These items are documented only. They are not implemented in this package yet. P
 
 - **CONTEXT.md vs `run-done` evidence path**: CONTEXT.md documents `runs/<slug>/<id>.done.json`, while `scripts/run-done.mjs` writes `${logPath}.done.json`.
 - **Parallel worktree integration**: there is no merge step for sibling worktrees.
-- **PR/CI**: this workflow has no pull-request or CI pipeline.
+
+Pull requests and pushes to the default branch (`main`) run GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). The job uses Node 22, which satisfies `engines.node` (`>=22.13`), installs dependencies with `npm ci`, and runs:
+
+- `npm test` (`node --test tests/*.test.mjs`)
+- `node scripts/check-agents.mjs` (agent frontmatter models match `scripts/lib/roles.mjs`)
+- a repository-local doctor check: `node scripts/doctor.mjs --json`, which fails the job only when bundled scripts are out of sync or a `SKILL.md` in this repository has an unsafe YAML description
+
+CI does not run these:
+
+- **`node scripts/run-pipeline.mjs`**: the SDK adapter starts a Cursor agent and needs Cursor SDK credentials. `--adapter task-card` writes a local pipeline run. `--dry-run` still needs a slug. None of those is a repository check.
+- **Live `invoke-worker.sh` / `ensure-workers.sh`**: they need the external CLIs `agy`, `opencode`, `codex`, or `claude`. `npm test` covers the scripts without those binaries. `--dry-run` logs the command line and does not need the CLI on `PATH`.
+- **Doctor's global skill-collision scan**: `doctor` also reads `~/.agents/skills` and `~/.cursor/skills` on the machine running it. CI ignores that part. `doctor` exits 0 when it only prints warnings, so the workflow applies the repository-local failures above.

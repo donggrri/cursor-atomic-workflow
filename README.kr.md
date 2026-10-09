@@ -204,4 +204,15 @@ node scripts/doctor.mjs     # 충돌, YAML frontmatter, 동기화·설치 상태
 
 - **CONTEXT.md vs `run-done` 증거 경로**: CONTEXT.md는 `runs/<slug>/<id>.done.json`인데 `scripts/run-done.mjs`는 `${logPath}.done.json`을 쓴다.
 - **병렬 워크트리 통합**: 형제 워크트리 merge 단계가 없다.
-- **PR/CI**: 이 워크플로에 대한 pull request·CI 파이프라인이 없다.
+
+이 저장소의 pull request와 기본 브랜치(`main`) push는 GitHub Actions([`.github/workflows/ci.yml`](.github/workflows/ci.yml))가 실행한다. Node 22를 쓰며, 이는 `engines.node`(`>=22.13`)를 만족한다. 잡은 `npm ci`로 의존성을 설치한 뒤 다음을 실행한다.
+
+- `npm test` (`node --test tests/*.test.mjs`)
+- `node scripts/check-agents.mjs` (에이전트 frontmatter `model`이 `scripts/lib/roles.mjs`와 일치하는지)
+- 저장소 로컬 doctor 검사: `node scripts/doctor.mjs --json`. 번들 스크립트가 어긋나거나 이 저장소 안의 `SKILL.md` description에 YAML 위험이 있을 때만 실패한다.
+
+CI에서 실행하지 않는 것:
+
+- **`node scripts/run-pipeline.mjs`**: SDK 어댑터는 Cursor 에이전트를 띄우며 Cursor SDK 자격 증명이 필요하다. `--adapter task-card`는 로컬 파이프라인 런을 쓴다. `--dry-run`도 slug가 필요하다. 어느 것도 저장소 검사가 아니다.
+- **`invoke-worker.sh` / `ensure-workers.sh`의 실제 CLI 실행**: `agy`, `opencode`, `codex`, `claude`가 필요하다. `npm test`가 그 스크립트를 CLI 설치 없이 다룬다. `--dry-run`은 명령줄만 로그에 남기며 CLI가 `PATH`에 없어도 된다.
+- **doctor의 전역 스킬 충돌 검사**: `~/.agents/skills`와 `~/.cursor/skills`는 그 명령을 실행하는 머신에 있다. CI는 그 결과를 실패로 보지 않는다. `doctor`는 경고만 있을 때 exit 0이므로, 워크플로는 위에서 말한 저장소 로컬 조건만 실패로 삼는다.
