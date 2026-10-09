@@ -21,6 +21,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   writeFileSync,
 } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -305,6 +306,11 @@ export function approveProposal(root, id, opts = {}) {
     addIndexLink(dir, stem);
   }
 
+  if (existing.includes("(아직 기록 없음)")) {
+    existing = existing.replace(/^\(아직 기록 없음\)\n?/m, "");
+    writeFileSync(path, existing);
+  }
+
   const alreadyThere = existing.split("\n").some((line) => line.includes(`] ${item.text} `) || line.endsWith(`] ${item.text}`));
   if (!alreadyThere) {
     const src = `${item.shortRepo}/${item.slug}`;
@@ -369,23 +375,23 @@ export function appendAudit(root, entry) {
  * @returns {{ committed: boolean, reason?: string }}
  */
 export function commitMemoryChange(dir, message) {
-  const git = (args) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  const runGit = (cwd, args) =>
+    execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  // 메모리 폴더는 볼트로 가는 심볼릭 링크일 수 있다. git 경로는 실제 경로 기준으로 맞춘다.
+  let real;
   let top;
   try {
-    top = git(["rev-parse", "--show-toplevel"]).trim();
+    real = realpathSync(dir);
+    top = runGit(real, ["rev-parse", "--show-toplevel"]).trim();
   } catch {
     return { committed: false, reason: "git 저장소 아님" };
   }
-  const rel = relative(top, dir) || ".";
+  const rel = relative(top, real) || ".";
   try {
-    git(["add", "--", rel]);
-    const staged = git(["diff", "--cached", "--name-only", "--", rel]).trim();
+    runGit(top, ["add", "--", rel]);
+    const staged = runGit(top, ["diff", "--cached", "--name-only", "--", rel]).trim();
     if (!staged) return { committed: false, reason: "변경 없음" };
-    execFileSync(
-      "git",
-      ["-C", top, "-c", "commit.template=", "commit", "-q", "-m", message, "--", rel],
-      { stdio: ["ignore", "pipe", "pipe"] },
-    );
+    runGit(top, ["-c", "commit.template=", "commit", "-q", "-m", message, "--", rel]);
     return { committed: true };
   } catch (err) {
     return { committed: false, reason: `커밋 실패: ${err.message.split("\n")[0]}` };
