@@ -1,7 +1,7 @@
 ---
 name: worker
 description: "cursor-atomic-workflow Phase 3. Implements one TASKS item, then stops for parent verification. Use to implement one task item at a time."
-model: grok-4.7-high
+model: composer-2.5
 readonly: false
 is_background: true
 ---

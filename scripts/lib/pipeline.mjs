@@ -7,6 +7,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { getWorkflowPaths } from "../work-status.mjs";
+import { buildMemoryContext, withMemoryContext, writeCapture } from "../memory.mjs";
 import { getRole } from "./roles.mjs";
 import { bugbotGate } from "./bugbot.mjs";
 import { planReviewGate, planReviewPath } from "./plan-review.mjs";
@@ -17,6 +18,7 @@ import {
   resolveProfileId,
   testerStep,
 } from "./profiles.mjs";
+import { loadWorkflowSettings, resolveAgyDecision } from "./workflow-settings.mjs";
 
 const CLI_DELEGATE_WORKERS = new Set(["agy", "opencode", "codex", "claude"]);
 
@@ -37,19 +39,6 @@ const AGY_STAGE_LABEL = {
 export function agyStageQuestion(stage) {
   const label = AGY_STAGE_LABEL[stage] ?? stage;
   return `지금은 ${label} 단계입니다. 이 단계를 agy로 실행할까요?`;
-}
-
-/**
- * @param {object} state
- * @param {string} stage
- * @param {{ auto?: boolean }} flags
- * @returns {"agy"|"sdk"|null}
- */
-function agyDecision(state, stage, flags) {
-  if (flags.auto) return "sdk";
-  const value = state.agyChoice?.[stage];
-  if (value === "agy" || value === "sdk") return value;
-  return null;
 }
 
 export function planHasBlockedQuestions(planText) {
@@ -323,6 +312,20 @@ export async function runPipeline(opts) {
   state.profile = profile.id;
   emit(`profile: ${profile.id}`);
 
+  const workflowSettings = loadWorkflowSettings({
+    repoRoot,
+    workflowHome: profileOptions.workflowHome,
+    exists: profileOptions.exists,
+    readFile: profileOptions.readFile,
+  });
+  if (!workflowSettings.ok) {
+    emit(workflowSettings.reason);
+    return { exitCode: 2, state };
+  }
+  const agyDefaults = workflowSettings.agy;
+  /** @param {string} stage */
+  const agyFor = (stage) => resolveAgyDecision(state, stage, flags, agyDefaults);
+
   if (flags.resume && state.cursor?.delegate === "agy" && state.cursor?.stage === "plan") {
     state.agyDone = { ...(state.agyDone ?? {}), plan: true };
     state.cursor = { phase: "plan-review" };
@@ -356,9 +359,13 @@ export async function runPipeline(opts) {
     return { exitCode: code, state: { ...state, ...partial } };
   }
 
-  async function runRoleStep(role, prompt, phaseKey) {
+  async function runRoleStep(role, rolePrompt, phaseKey) {
     const roleDef = getRole(role);
     const model = roleDef.taskModel;
+    const prompt = withMemoryContext(
+      rolePrompt,
+      buildMemoryContext({ root: paths.root, shortRepo: paths.shortRepo }),
+    );
     let attempts = 0;
     const maxAttempts = 2;
     const showProgress = !isTaskCardAdapter(adapter);
@@ -454,7 +461,7 @@ export async function runPipeline(opts) {
 
   if (phase === "agy-ask") {
     const stage = state.cursor.stage;
-    const decision = agyDecision(state, stage, flags);
+    const decision = agyFor(stage);
     if (!decision) {
       saveState(paths, state, opts);
       await syncAfter({ statusSync }, slug);
@@ -495,7 +502,7 @@ export async function runPipeline(opts) {
   }
 
   if (cursorPhase === "plan-review" || state.cursor?.phase === "plan-review") {
-    const planDecision = agyDecision(state, "plan", flags);
+    const planDecision = agyFor("plan");
     if (planDecision === null && !state.agyDone?.plan) {
       return stopForAgyAsk("plan", "plan-review");
     }
@@ -566,7 +573,7 @@ export async function runPipeline(opts) {
       const current = parseTasksMarkdown(tasksText).find((item) => item.id === task.id);
       return current && !current.checked;
     });
-    if (hasOpen && agyDecision(state, "implement", flags) === null) {
+    if (hasOpen && agyFor("implement") === null) {
       return stopForAgyAsk("implement", "execute");
     }
 
@@ -588,7 +595,7 @@ export async function runPipeline(opts) {
         writeFileSync(tasksPath, tasksText, "utf8");
       }
 
-      const implementAgy = agyDecision(state, "implement", flags) === "agy";
+      const implementAgy = agyFor("implement") === "agy";
       const handback = state.cursor?.agyHandback === task.id;
       if (handback) {
         state.cursor = { phase: "execute", taskId: task.id };
@@ -676,7 +683,7 @@ export async function runPipeline(opts) {
   }
 
   if (state.cursor?.phase === "reviewer" || cursorPhase === "reviewer") {
-    const reviewDecision = agyDecision(state, "review", flags);
+    const reviewDecision = agyFor("review");
     if (reviewDecision === null && !state.agyDone?.review) {
       return stopForAgyAsk("review", "reviewer");
     }
@@ -756,7 +763,7 @@ export async function runPipeline(opts) {
           const current = parseTasksMarkdown(tasksText2).find((t) => t.id === task.id);
           if (!current || current.checked) continue;
 
-          const reworkAgy = agyDecision(state, "implement", flags) === "agy";
+          const reworkAgy = agyFor("implement") === "agy";
           if (reworkAgy || CLI_DELEGATE_WORKERS.has(task.worker)) {
             state.cursor = {
               phase: "execute",
@@ -799,7 +806,7 @@ export async function runPipeline(opts) {
           await syncAfter({ statusSync }, slug);
         }
 
-        if (agyDecision(state, "review", flags) === "agy") {
+        if (agyFor("review") === "agy") {
           state.agyDone = { ...(state.agyDone ?? {}), review: false };
           return stopForAgyDelegate({ phase: "reviewer", delegate: "agy", stage: "review" });
         }
@@ -854,6 +861,18 @@ export async function runPipeline(opts) {
     state.cursor = { phase: "complete" };
     saveState(paths, state, opts);
     await syncAfter({ statusSync }, slug);
+    try {
+      const capture = writeCapture({
+        root: paths.root,
+        shortRepo: paths.shortRepo,
+        slug,
+        docsDir: paths.docsDir,
+        runsDir: paths.runsDir,
+      });
+      emit(`memory capture: ${capture}`);
+    } catch (err) {
+      emit(`memory capture skipped: ${err.message}`);
+    }
     return { exitCode: 0, state };
   }
 

@@ -1,7 +1,7 @@
 ---
 name: tester
 description: "cursor-atomic-workflow Phase 3 후반 / Phase 4 후반. reviewer 완료 후, 로직 diff에 대한 테스트 작성 + mutation 검증을 담당. Use to write tests and run mutation checks for logic diffs."
-model: grok-4.7-high
+model: claude-haiku-5-5-high
 readonly: false
 is_background: true
 ---

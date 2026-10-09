@@ -1,7 +1,7 @@
 ---
 name: planner
 description: "cursor-atomic-workflow Phase 1. Writes PLAN-<slug>.md with goal, non-goals, blocked questions, and order. Use after requirements are clarified to write the implementation plan."
-model: claude-opus-5-5-high
+model: claude-sonnet-5-5-high
 readonly: false
 is_background: true
 ---

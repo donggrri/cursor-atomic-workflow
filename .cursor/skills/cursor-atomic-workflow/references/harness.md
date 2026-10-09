@@ -18,13 +18,13 @@ TASKS `worker:`가 `agy|opencode|codex|claude`이면 `cli-delegate`를 띄운다
 
 | 역할 | subagent_type | model |
 |---|---|---|
-| explorer | `explorer` | `grok-4.7-high` |
-| planner | `planner` | `claude-opus-5-5-high` |
+| explorer | `explorer` | `claude-haiku-5-5-high` |
+| planner | `planner` | `claude-sonnet-5-5-high` |
 | plan-reviewer | `plan-reviewer` | `grok-4.7-high` |
-| tasker | `tasker` | `grok-4.7-high` |
-| worker | `worker` | `grok-4.7-high` |
+| tasker | `tasker` | `composer-2.5` |
+| worker | `worker` | `composer-2.5` |
 | reviewer | `cursor-atomic-reviewer` | `claude-sonnet-5-5-high` |
-| tester | `tester` | `grok-4.7-high` |
+| tester | `tester` | `claude-haiku-5-5-high` |
 | cli-delegate | `cli-delegate` | `grok-4.7-high` |
 
 reviewer의 `model`은 `claude-sonnet-5-5-high`다(worker와 다른 모델 계열이어야 독립 검증이 된다). 이 슬러그가 세션 `available_subagent_models`에 없으면 멈추고 목록을 보고한다. 모든 역할은 표의 슬러그만 쓴다.

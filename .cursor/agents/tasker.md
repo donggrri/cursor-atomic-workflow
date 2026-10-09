@@ -1,7 +1,7 @@
 ---
 name: tasker
 description: "cursor-atomic-workflow Phase 2. Splits PLAN-<slug>.md into verifiable TASKS-<slug>.md items. Use after the plan is confirmed to split it into verifiable tasks."
-model: grok-4.7-high
+model: composer-2.5
 readonly: false
 is_background: true
 ---

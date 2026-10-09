@@ -6,22 +6,18 @@
 export const ROLES = {
   explorer: {
     subagentType: "explorer",
-    taskModel: "grok-4.7-high",
+    taskModel: "claude-haiku-5-5-high",
     sdk: {
-      id: "grok-4.7",
+      id: "claude-haiku-5-5",
       params: [{ id: "reasoning_effort", value: "high" }],
     },
   },
   planner: {
     subagentType: "planner",
-    taskModel: "claude-opus-5-5-high",
+    taskModel: "claude-sonnet-5-5-high",
     sdk: {
-      id: "claude-opus-5-5",
-      params: [
-        { id: "effort", value: "high" },
-        { id: "context", value: "300k" },
-        { id: "fast", value: "false" },
-      ],
+      id: "claude-sonnet-5-5",
+      params: [{ id: "reasoning_effort", value: "high" }],
     },
   },
   "plan-reviewer": {
@@ -34,18 +30,16 @@ export const ROLES = {
   },
   tasker: {
     subagentType: "tasker",
-    taskModel: "grok-4.7-high",
+    taskModel: "composer-2.5",
     sdk: {
-      id: "grok-4.7",
-      params: [{ id: "reasoning_effort", value: "high" }],
+      id: "composer-2.5",
     },
   },
   worker: {
     subagentType: "worker",
-    taskModel: "grok-4.7-high",
+    taskModel: "composer-2.5",
     sdk: {
-      id: "grok-4.7",
-      params: [{ id: "reasoning_effort", value: "high" }],
+      id: "composer-2.5",
     },
   },
   reviewer: {
@@ -58,14 +52,30 @@ export const ROLES = {
   },
   tester: {
     subagentType: "tester",
+    taskModel: "claude-haiku-5-5-high",
+    sdk: {
+      id: "claude-haiku-5-5",
+      params: [{ id: "reasoning_effort", value: "high" }],
+    },
+  },
+  "cli-delegate": {
+    subagentType: "cli-delegate",
     taskModel: "grok-4.7-high",
     sdk: {
       id: "grok-4.7",
       params: [{ id: "reasoning_effort", value: "high" }],
     },
   },
-  "cli-delegate": {
-    subagentType: "cli-delegate",
+};
+
+/**
+ * 파이프라인이 호출하지 않는 보조 에이전트. 대화 중 Task로 부르거나, stop hook의 헤드리스 실행(memory-sweep)에서 쓴다.
+ * check-agents가 에이전트 파일과 모델이 맞는지만 검사한다.
+ * @type {Record<string, { subagentType: string, taskModel: string, sdk: SdkModel }>}
+ */
+export const AUXILIARY_ROLES = {
+  "memory-curator": {
+    subagentType: "memory-curator",
     taskModel: "grok-4.7-high",
     sdk: {
       id: "grok-4.7",

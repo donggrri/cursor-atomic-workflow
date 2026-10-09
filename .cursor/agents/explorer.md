@@ -1,7 +1,7 @@
 ---
 name: explorer
 description: "cursor-atomic-workflow Phase 0. Recon specialist that investigates codebases, dependencies, and docs to write EXPLORE-<slug>.md. Use proactively for codebase exploration before planning."
-model: grok-4.7-high
+model: claude-haiku-5-5-high
 readonly: false
 is_background: true
 ---

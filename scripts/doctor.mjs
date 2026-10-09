@@ -21,7 +21,7 @@ export const WORKFLOW_SKILL = "cursor-atomic-workflow";
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SKILLS_DIR = ".cursor/skills";
 const AGENTS_DIR = ".cursor/agents";
-const BUNDLED_SCRIPTS = ["work-status.mjs", "run-done.mjs"];
+const BUNDLED_SCRIPTS = ["work-status.mjs", "run-done.mjs", "memory.mjs"];
 
 /** @param {string} root */
 export async function listCommandSkills(root) {

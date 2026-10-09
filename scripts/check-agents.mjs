@@ -7,6 +7,7 @@ import {
   getRole,
   agentFileName,
   modelFamily,
+  AUXILIARY_ROLES,
 } from "./lib/roles.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -31,9 +32,20 @@ export function checkAgents(options = {}) {
   const dir = resolve(options.dir ?? defaultAgentsDir);
   const problems = [];
 
-  for (const name of roleNames()) {
-    const { taskModel } = getRole(name);
-    const file = agentFileName(name);
+  const checks = [
+    ...roleNames().map((name) => ({
+      name,
+      taskModel: getRole(name).taskModel,
+      file: agentFileName(name),
+    })),
+    ...Object.entries(AUXILIARY_ROLES).map(([name, role]) => ({
+      name,
+      taskModel: role.taskModel,
+      file: `${role.subagentType}.md`,
+    })),
+  ];
+
+  for (const { name, taskModel, file } of checks) {
     const path = join(dir, file);
 
     if (!existsSync(path)) {

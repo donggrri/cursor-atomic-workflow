@@ -174,10 +174,13 @@ test("artifact writers use slug folders under .docs and harness docs", async () 
 });
 
 test("workflow agents are registered without g- prefix", async () => {
-  const { ROLES, agentFileName, getRole } = await import("../scripts/lib/roles.mjs");
+  const { ROLES, AUXILIARY_ROLES, agentFileName, getRole } = await import("../scripts/lib/roles.mjs");
   const agentsDir = join(".cursor", "agents");
   const files = (await readdir(agentsDir)).sort();
-  const expected = Object.keys(ROLES).map((role) => agentFileName(role)).sort();
+  const expected = [
+    ...Object.keys(ROLES).map((role) => agentFileName(role)),
+    ...Object.values(AUXILIARY_ROLES).map((role) => `${role.subagentType}.md`),
+  ].sort();
   assert.deepEqual(files, expected);
 
   for (const [name, skills] of Object.entries(workflowAgents)) {

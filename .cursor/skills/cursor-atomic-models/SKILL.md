@@ -12,12 +12,12 @@ disable-model-invocation: true
 
 | 단계 | 에이전트 | 강제 스킬 | Task `model` |
 |---|---|---|---|
-| explore / recon | `explorer` | `cursor-atomic-workflow` | `grok-4.7-high` |
-| plan | `planner` | `codebase-design` | `claude-opus-5-5-high` |
+| explore / recon | `explorer` | `cursor-atomic-workflow` | `claude-haiku-5-5-high` |
+| plan | `planner` | `codebase-design` | `claude-sonnet-5-5-high` |
 | plan-review | `plan-reviewer` | `codebase-design`, `tdd` | `grok-4.7-high` |
-| task | `tasker` | `to-tickets` | `grok-4.7-high` |
-| execute | `worker` | `tdd` | `grok-4.7-high` |
-| test | `tester` | `tdd`, `codebase-design` | `grok-4.7-high` |
+| task | `tasker` | `to-tickets` | `composer-2.5` |
+| execute | `worker` | `tdd` | `composer-2.5` |
+| test | `tester` | `tdd`, `codebase-design` | `claude-haiku-5-5-high` |
 | review | `cursor-atomic-reviewer` | `code-review` | `claude-sonnet-5-5-high` |
 | CLI 위임 | `cli-delegate` | `cursor-atomic-workflow` | `grok-4.7-high` |
 | commit/status/config | (현재 세션) | — | — |
