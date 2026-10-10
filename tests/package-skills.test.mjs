@@ -392,7 +392,7 @@ test("run-done creates .done.json at logPath", async () => {
       logPath,
       timeoutMs: 5000,
     });
-    const donePath = `${logPath}.done.json`;
+    const donePath = join(tmpDir, "build.done.json");
     const exists = statSync(donePath).isFile();
     assert.ok(exists, ".done.json should exist");
     const content = await readFile(logPath, "utf8");

@@ -5,12 +5,23 @@ import { createWriteStream } from "node:fs";
 import { join } from "node:path";
 
 /**
+ * Command log `…/<id>.log` stores evidence at `…/<id>.done.json`.
+ * A log path that does not end in `.log` keeps the summary at `${logPath}.done.json`.
+ * @param {string} logPath
+ * @returns {string}
+ */
+export function evidencePath(logPath) {
+  if (logPath.endsWith(".log")) return `${logPath.slice(0, -".log".length)}.done.json`;
+  return `${logPath}.done.json`;
+}
+
+/**
  * 명령을 실행하고 stdout/stderr를 logPath에 저장한 뒤 요약 JSON을 쓴다.
  * @param {{ cwd?: string, command: string, logPath: string, timeoutMs: number }} opts
  * @returns {Promise<{ ok: boolean, exitCode: number, outputPath: string, errorTail?: string }>}
  */
 export async function runDone({ cwd, command, logPath, timeoutMs }) {
-  const donePath = `${logPath}.done.json`;
+  const donePath = evidencePath(logPath);
 
   return new Promise((resolve) => {
     let settled = false;

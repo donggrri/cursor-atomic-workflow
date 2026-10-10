@@ -14,6 +14,16 @@ export const SDK_INSTALL_HINT =
 export const TASK_CARD_EXPLICIT_HINT =
   "task-card selected: --adapter task-card";
 
+/**
+ * Pipeline command log for one task id. Evidence is evidencePath(this).
+ * @param {string} runsDir
+ * @param {string} taskId
+ * @returns {string}
+ */
+export function taskLogPath(runsDir, taskId) {
+  return join(runsDir, `${taskId}.log`);
+}
+
 export function parseArgs(argv) {
   const args = argv.slice(2);
   const flags = { auto: false, resume: false, dryRun: false };
@@ -219,7 +229,7 @@ async function main() {
     adapter,
     runDone: async ({ taskId, command, cwd }) => {
       const { runsDir } = getWorkflowPaths(repo, slug);
-      const logPath = join(runsDir, `done-${taskId}.log`);
+      const logPath = taskLogPath(runsDir, taskId);
       const timeoutMs = parseInt(process.env.TIMEOUT_MS || "30000", 10);
       const result = await runDone({ cwd, command, logPath, timeoutMs });
       return {
