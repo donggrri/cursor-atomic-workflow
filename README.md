@@ -112,7 +112,7 @@ node scripts/run-pipeline.mjs <slug> [--auto] [--resume] [--adapter sdk|task-car
 - `--adapter sdk` (default) drives Cursor Task subagents through `@cursor/sdk`. Without the SDK it falls back to `--adapter task-card`, stops with exit code `10`, and leaves `next-card.json` for the parent session to execute and `--resume`. After the cost gate, **plan-review** runs `plan-reviewer` (writes `PLAN-REVIEW-<slug>.md`); blocking defects trigger one planner auto-revision and re-review, then exit `20` if defects remain. On **Review** entry (initial and after rework), exit `10` may be a **`kind: "bugbot"`** card first: the parent runs Cursor `bugbot`, saves output to `~/.cursor-atomic-workflow/runs/{shortRepo}/{slug}/bugbot-findings.md` (or a `# BUGBOT_FAILED` marker on failure), then `--resume` before the reviewer runs.
 - The log lives at `~/.cursor-atomic-workflow/runs/{shortRepo}/{slug}/pipeline.log`; per-step command logs get a `.done.json` summary next to them. With the SDK adapter every role logs `▶ [phase] role started · model=…` and `■ [phase] role done · Ns`, plus nested subagent/status lines (`tail -f pipeline.log` to follow). Set `ATOMIC_PROGRESS=tools` to also log each tool call.
 - `--resume` retries failed items (already checked items stay done).
-- `--profile <id>` swaps only the plan and test instructions. Omit it and the runner uses the project file `.cursor-atomic-workflow.json`, then `~/.cursor-atomic-workflow/settings.json`, then `atomic`. PLAN, TASKS, and REVIEW stay under `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/`. A profile JSON lives in `profiles/<id>.json` (package), `~/.cursor-atomic-workflow/profiles/<id>.json`, or the repo `profiles/<id>.json`. Later locations win. Do not put secrets in that JSON. The bundled `bsp` profile points at `~/edge_bsp_foundation` command files.
+- `--profile <id>` swaps only the plan and test instructions. Omit it and the runner uses the project file `.cursor-atomic-workflow.json`, then `~/.cursor-atomic-workflow/settings.json`, then `atomic`. PLAN, TASKS, and REVIEW stay under `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/`. A profile JSON lives in `profiles/<id>.json` (package), `~/.cursor-atomic-workflow/profiles/<id>.json`, or the repo `profiles/<id>.json`. Later locations win. Do not put secrets in that JSON. `profiles/bsp.json.example` is a template with placeholder paths: copy it to `profiles/<id>.json` or `~/.cursor-atomic-workflow/profiles/<id>.json` and point `command` at your own files. Names ending in `.example.json` or `.json.example` are not loaded.
 
 Exit codes:
 
@@ -176,18 +176,19 @@ The bundled snapshot's source repository, revision, and MIT license are recorded
 
 ## 8. Maintaining this package
 
-Edit files in place — there is no generator step.
+Edit skill and agent files in place. The workflow scripts `scripts/work-status.mjs`, `scripts/run-done.mjs`, and `scripts/memory.mjs` are copied into `.cursor/skills/cursor-atomic-workflow/scripts/` by `node scripts/sync-bundled.mjs`.
 
 | Change | Edit |
 |---|---|
 | Command behavior | `.cursor/skills/cursor-atomic-<name>/SKILL.md` |
 | Agent role / per-phase model | `.cursor/agents/<agent>.md` (+ `scripts/lib/roles.mjs`) |
 | Harness differences | `.cursor/skills/cursor-atomic-workflow/references/harness.md` |
-| Workflow scripts | `scripts/work-status.mjs`, `scripts/run-done.mjs` — keep the copies in `.cursor/skills/cursor-atomic-workflow/scripts/` identical |
+| Workflow scripts | `scripts/work-status.mjs`, `scripts/run-done.mjs`, `scripts/memory.mjs`, then `node scripts/sync-bundled.mjs` |
 
 ```bash
-npm test                    # structure, agent, artifact-path and bundled-script sync tests
-node scripts/doctor.mjs     # collisions, YAML frontmatter, sync + install state
+npm test                              # structure, agent, artifact-path and bundled-script sync tests
+node scripts/sync-bundled.mjs --check # fail if the skill copies drifted
+node scripts/doctor.mjs               # collisions, YAML frontmatter, sync + install state
 ```
 
 To add a command, create `.cursor/skills/cursor-atomic-<name>/SKILL.md` with `disable-model-invocation: true` and a description ending in "사용자가 직접 호출할 때만 쓴다." (so it only runs when the user calls it), then run `npm test`.
@@ -196,8 +197,19 @@ To add a command, create `.cursor/skills/cursor-atomic-<name>/SKILL.md` with `di
 
 ## 9. Future work
 
-These items are documented only. They are not implemented in this package yet. Priorities live in [ROADMAP.md](ROADMAP.md) (Korean). Note that ROADMAP's harness-unification section describes the earlier multi-harness structure and predates the Cursor-only rewrite.
+These items are documented only. They are not implemented in this package yet. Priorities live in [ROADMAP.md](ROADMAP.md) (Korean). ROADMAP marks the sections that still describe the pre-rewrite multi-harness layout.
 
-- **CONTEXT.md vs `run-done` evidence path**: CONTEXT.md documents `runs/<slug>/<id>.done.json`, while `scripts/run-done.mjs` writes `${logPath}.done.json`.
 - **Parallel worktree integration**: there is no merge step for sibling worktrees.
-- **PR/CI**: this workflow has no pull-request or CI pipeline.
+
+Pull requests and pushes to the default branch (`main`) run GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). The job uses Node 22, which satisfies `engines.node` (`>=22.13`), installs dependencies with `npm ci`, and runs:
+
+- `npm test` (`node --test tests/*.test.mjs`)
+- `node scripts/check-agents.mjs` (agent frontmatter models match `scripts/lib/roles.mjs`)
+- `node scripts/sync-bundled.mjs --check` (skill copies of `work-status.mjs`, `run-done.mjs`, and `memory.mjs` match `scripts/`)
+- a repository-local doctor check: `node scripts/doctor.mjs --json`, which fails the job when bundled scripts are out of sync or a `SKILL.md` in this repository has an unsafe YAML description
+
+CI does not run these:
+
+- **`node scripts/run-pipeline.mjs`**: the SDK adapter starts a Cursor agent and needs Cursor SDK credentials. `--adapter task-card` writes a local pipeline run. `--dry-run` still needs a slug. None of those is a repository check.
+- **Live `invoke-worker.sh` / `ensure-workers.sh`**: they need the external CLIs `agy`, `opencode`, `codex`, or `claude`. `npm test` covers the scripts without those binaries. `--dry-run` logs the command line and does not need the CLI on `PATH`.
+- **Doctor's global skill-collision scan**: `doctor` also reads `~/.agents/skills` and `~/.cursor/skills` on the machine running it. CI ignores that part. `doctor` exits 0 when it only prints warnings, so the workflow applies the repository-local failures above.

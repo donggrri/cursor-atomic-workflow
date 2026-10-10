@@ -1,0 +1,9 @@
+{
+  "id": "bsp",
+  "plan": {
+    "command": "~/path/to/plan-command.md"
+  },
+  "test": {
+    "command": "~/path/to/test-command.md"
+  }
+}

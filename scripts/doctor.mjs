@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { bundledScriptDiffs } from "./sync-bundled.mjs";
 
 export const BUNDLED_SKILLS = [
   "code-review",
@@ -21,7 +22,6 @@ export const WORKFLOW_SKILL = "cursor-atomic-workflow";
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SKILLS_DIR = ".cursor/skills";
 const AGENTS_DIR = ".cursor/agents";
-const BUNDLED_SCRIPTS = ["work-status.mjs", "run-done.mjs", "memory.mjs"];
 
 /** @param {string} root */
 export async function listCommandSkills(root) {
@@ -38,24 +38,10 @@ export async function listCommandSkills(root) {
  */
 export async function checkHarnessSync(options = {}) {
   const cwd = options.cwd || process.cwd();
-  const bundledDir = join(cwd, SKILLS_DIR, WORKFLOW_SKILL, "scripts");
   if (!existsSync(join(cwd, SKILLS_DIR, WORKFLOW_SKILL, "SKILL.md"))) {
     return { skipped: true, inSync: true, mismatches: [], stale: [] };
   }
-  const mismatches = [];
-  for (const script of BUNDLED_SCRIPTS) {
-    const rootScript = join(cwd, "scripts", script);
-    const bundledScript = join(bundledDir, script);
-    if (!existsSync(bundledScript)) {
-      mismatches.push(`missing .cursor/skills/${WORKFLOW_SKILL}/scripts/${script}`);
-      continue;
-    }
-    const [rootText, bundledText] = await Promise.all([
-      readFile(rootScript, "utf8"),
-      readFile(bundledScript, "utf8"),
-    ]);
-    if (rootText !== bundledText) mismatches.push(script);
-  }
+  const mismatches = await bundledScriptDiffs({ cwd });
   return { skipped: false, inSync: mismatches.length === 0, mismatches, stale: [] };
 }
 

@@ -3,6 +3,17 @@
 이 문서는 `cursor-atomic-workflow`에 적용할 개선 항목과 순서를 정리한다.
 외부 참고는 [oh-my-openagent](https://github.com/code-yeongyu/oh-my-openagent)(구 oh-my-opencode, 이하 OmO) `718ef30`(2026-09-27)의 `ulw-plan`·`ulw-execute` 스킬, 오케스트레이션 가이드, 선언문이다.
 
+## 현재 트리와 맞지 않는 서술
+
+패키지는 Cursor 전용이다. 아래는 이 문서 안에서 지금 코드와 다른 부분이다. 역사 기록은 지우지 않았다.
+
+- **0단계 경로와 생성기 (오래됨)**: `skills/`, `prompts/`, `agents/*.md`, `.opencode/`, `.claude/`, `scripts/sync-harness.mjs`, `scripts/install.mjs --harness cursor,opencode,claude,codex`는 재편 전 구조다. 커맨드와 에이전트 원본은 `.cursor/skills/`와 `.cursor/agents/`다. 루트 `scripts/work-status.mjs`, `scripts/run-done.mjs`, `scripts/memory.mjs`를 스킬 사본과 맞추는 명령은 `node scripts/sync-bundled.mjs`이고, `--check`는 CI에서 돈다.
+- **`plan-reviewer` 상태 (일부 오래됨)**: `.cursor/agents/plan-reviewer.md`가 있고 `run-pipeline.mjs`가 cost-gate 뒤에 항상 실행한다. 자동 수정은 1회다. 3단계에 적힌 「최대 3회」와 「HEAVY일 때만」은 아직 없다.
+- **`tester` 누락 문장 (오래됨)**: 1단계 「reviewer ↔ tester」의 "Cursor 에이전트 목록에도 없다"는 옛 상태다. `.cursor/agents/tester.md`가 있다. worker → tester → reviewer 순서 고정은 아직 대기이다.
+- **README 장 번호 (오래됨)**: 맨 아래 표의 「README 11장」은 현재 README 9장 「추후 과제」다.
+- **저장소 CI**: `.github/workflows/ci.yml`이 pull request와 `main` push에서 `npm test`, `check-agents`, `sync-bundled --check`, doctor를 실행한다. `/cursor-atomic-wrapup --make-pr`는 아직 없다.
+- **증거 경로**: `CONTEXT.md`와 `run-done.mjs`는 `~/.cursor-atomic-workflow/runs/{shortRepo}/<slug>/<id>.done.json`으로 맞췄다. 명령 로그는 같은 디렉터리의 `<id>.log`다. 2단계 ledger(`ledger.jsonl`, verdict)는 아직 없다.
+
 ## 유지할 원칙
 
 OmO의 "사람 개입은 실패 신호"를 그대로 따르지 않는다. 아래는 이 패키지가 의도적으로 지키는 선택이다.
@@ -22,8 +33,8 @@ OmO의 "사람 개입은 실패 신호"를 그대로 따르지 않는다. 아래
 | 1 | 의도 CLEAR/UNCLEAR 분기 | plan 커맨드, `SKILL.md` Phase 1 | 대기 |
 | 1 | 워커 브리프 표준 형식 | `reference.md`, `agents/worker.md` | 대기 |
 | 2 | 완료 판정(verdict) 필드 | `scripts/run-done.mjs`, `testing.md`, 테스트 | 대기 |
-| 2 | 증거 ledger와 경로 통일 | `scripts/run-done.mjs`, `scripts/work-status.mjs`, `CONTEXT.md` | 대기 |
-| 3 | `plan-reviewer` 에이전트 | `agents/`, plan 커맨드 | 대기 |
+| 2 | 증거 ledger와 경로 통일 | `scripts/run-done.mjs`, `scripts/work-status.mjs`, `CONTEXT.md` | 경로만 통일, ledger는 대기 |
+| 3 | `plan-reviewer` 에이전트 | `agents/`, plan 커맨드 | 일부 구현 (3회·HEAVY 조건은 대기) |
 | 3 | 활성 작업 재개와 `/cursor-atomic-handoff` | `work-status.mjs`, execute 커맨드, 새 커맨드 | 대기 |
 | 3 | 배운 점 누적(`LEARNINGS.md`) | `SKILL.md`, `agents/worker.md` | 대기 |
 | 3 | 난이도별 워커 변형 | `agents/` | 대기 |
@@ -33,6 +44,8 @@ OmO의 "사람 개입은 실패 신호"를 그대로 따르지 않는다. 아래
 ---
 
 ## 0단계: 하네스 통합
+
+> 오래됨. 아래 트리와 명령 이름은 Cursor 전용 재편 전이다. 맞는 경로는 위 「현재 트리와 맞지 않는 서술」을 본다.
 
 ### 통합 전 문제
 
@@ -117,7 +130,7 @@ agents/*.md                               # 에이전트 단일 소스: frontmat
 
 ### reviewer ↔ tester 순서 정리
 
-- 문제: `tester`는 REVIEW 파일이 있어야 실행되는데, `reviewer`는 tester 결과를 재검증하라고 되어 있어 순환한다. `tester`는 Cursor 에이전트 목록에도 없다.
+- 문제: `tester`는 REVIEW 파일이 있어야 실행되는데, `reviewer`는 tester 결과를 재검증하라고 되어 있어 순환한다. ~~`tester`는 Cursor 에이전트 목록에도 없다.~~ (오래됨: `.cursor/agents/tester.md`가 있다.)
 - 적용: 순서를 worker → (HEAVY면 tester) → reviewer로 고정한다. reviewer는 최종 게이트 하나로 남는다. `tester`의 "REVIEW 필요" 조건을 삭제한다. (`tester`는 0단계에서 모든 하네스 생성 목록에 들어갔다.)
 
 ### 적대적 QA 트리거 맵
@@ -169,13 +182,15 @@ STOP WHEN: <멈추고 보고할 조건>
 ### 증거 ledger와 경로 통일
 
 - 무엇: `~/.cursor-atomic-workflow/runs/{shortRepo}/{slug}/ledger.jsonl`에 한 줄에 JSON 하나씩 추가만 한다. 필드는 `event`, `task`, `tier`, `session_id`, `commands`, `verdict`, `artifact`, `adversarial`.
-- 부수 효과: `CONTEXT.md`(`runs/<slug>/<id>.done.json`)와 `run-done.mjs`(`${logPath}.done.json`)의 경로 불일치를 이 기회에 하나로 맞춘다. `work-status.mjs show`가 ledger 요약을 보여 준다.
+- 부수 효과: 경로 불일치는 맞춰 두었다. 증거는 `~/.cursor-atomic-workflow/runs/{shortRepo}/<slug>/<id>.done.json`이고 로그는 `<id>.log`다. ledger와 `work-status.mjs show` 요약은 아직 없다.
 
 ---
 
 ## 3단계: 새 에이전트와 커맨드
 
 ### `plan-reviewer` 에이전트
+
+> 일부만 오래됨. 에이전트와 항상 실행·자동 수정 1회는 구현되어 있다. 최대 3회와 HEAVY일 때만 켜기는 아직 없다.
 
 - 무엇: 읽기 전용 에이전트. PLAN 저장 후 `tasker` 전에 실행한다. 승인 쪽으로 기울어 있고, 확인된 막힘만 거절한다. 참조 파일이 실제로 있는지, 모든 항목에 실행 가능한 `done`이 있는지, 항목끼리 모순이 없는지, 구현자가 판단할 거리가 남지 않았는지를 본다.
 - 라운드는 최대 3회. 거절 사유를 고쳐 다시 제출한다. HEAVY 항목이 있거나 사용자가 "고정밀"을 요청했을 때 기본으로 켠다.
@@ -210,12 +225,12 @@ STOP WHEN: <멈추고 보고할 조건>
 
 ## 기존 추후 과제와의 대응
 
-README 11장의 항목은 아래 단계에서 함께 처리한다.
+README 9장(옛 표의 「11장」은 오래됨)의 항목은 아래 단계에서 함께 처리한다.
 
 | README 추후 과제 | 처리 단계 |
 |---|---|
-| Cursor 동기화 드리프트(`tester` 누락) | 0단계에서 해결 (에이전트 7종 모두 생성) |
+| Cursor 동기화 드리프트(`tester` 누락) | 0단계에서 해결 (에이전트 7종 모두 생성). `tester` 파일은 지금 있다 |
 | README 에이전트 키 누락 | 0단계 README 갱신 |
-| CONTEXT.md vs `run-done` 증거 경로 | 2단계 ledger와 경로 통일 |
+| CONTEXT.md vs `run-done` 증거 경로 | 경로 통일 완료. ledger는 2단계 대기 |
 | 병렬 워크트리 통합 | 선택 항목 병합 규칙 |
-| PR/CI | 선택 항목 `--make-pr`, 0단계 `--check`를 CI에 연결 |
+| PR/CI | 저장소 CI 완료 (`.github/workflows/ci.yml`, `sync-bundled --check`). `--make-pr`는 선택 항목으로 대기 |

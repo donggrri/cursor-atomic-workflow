@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          # package.json engines is >=22.13. Node 22 is the LTS line that satisfies it.
+          node-version: "22"
+          cache: npm
+
+      - name: Require Node >=22.13
+        run: |
+          node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 22 || (major === 22 && minor < 13)) { console.error(`package.json engines requires Node >=22.13, got ${process.version}`); process.exit(1); } console.log(process.version);'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Check agents
+        run: node scripts/check-agents.mjs
+
+      - name: Check bundled script copies
+        run: node scripts/sync-bundled.mjs --check
+
+      # doctor exits 0 for warnings and also scans ~/.agents/skills and
+      # ~/.cursor/skills. Fail only on this repository's bundled-script drift
+      # and SKILL.md frontmatter. run-pipeline and live invoke-worker need
+      # Cursor SDK credentials or external CLIs, so they stay out of CI.
+      - name: Doctor (repository files only)
+        env:
+          DOCTOR_JSON: ${{ runner.temp }}/doctor.json
+        run: |
+          node scripts/doctor.mjs --json > "$DOCTOR_JSON"
+          node --input-type=module <<'EOF'
+          import { readFileSync } from "node:fs";
+          import { isAbsolute, relative } from "node:path";
+
+          const report = JSON.parse(readFileSync(process.env.DOCTOR_JSON, "utf8"));
+          const problems = [];
+
+          const sync = report.harnessSync;
+          if (sync && !sync.skipped && !sync.inSync) {
+            problems.push(
+              `bundled scripts differ from scripts/: ${(sync.mismatches || []).join(", ")}`,
+            );
+          }
+
+          const root = process.cwd();
+          for (const item of report.yamlIssues || []) {
+            const rel = relative(root, item.file);
+            if (rel.startsWith("..") || isAbsolute(rel)) continue;
+            const detail = (item.issues || [])
+              .map((issue) => `line ${issue.line}: ${issue.error}`)
+              .join("; ");
+            problems.push(`YAML frontmatter in ${rel}${detail ? ` (${detail})` : ""}`);
+          }
+
+          const collisions = report.collisions || [];
+          if (collisions.length > 0) {
+            console.log(
+              `doctor: ignored ${collisions.length} skill collision(s) outside the repository`,
+            );
+          }
+
+          if (problems.length > 0) {
+            console.error(problems.join("\n"));
+            process.exit(1);
+          }
+
+          console.log("doctor: repository checks passed");
+          EOF

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -164,6 +164,50 @@ test("resolveProfileId prefers cli, then project, then global, then atomic", () 
     writeFileSync(join(home, "settings.json"), "{", "utf8");
     writeFileSync(join(repo, ".cursor-atomic-workflow.json"), "", "utf8");
     assert.equal(resolveProfileId(base).ok, false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("bsp.json.example is not a shipped profile", () => {
+  const names = readdirSync("profiles");
+  assert.ok(names.includes("bsp.json.example"));
+  assert.equal(names.includes("bsp.json"), false);
+  const example = readFileSync("profiles/bsp.json.example", "utf8");
+  assert.doesNotMatch(example, /edge_bsp_foundation/);
+  assert.match(example, /"id": "bsp"/);
+  const root = tempRoot();
+  try {
+    const loaded = getProfile("bsp", {
+      packageRoot: process.cwd(),
+      workflowHome: root,
+      repoRoot: root,
+      homeDir: root,
+    });
+    assert.equal(loaded.ok, false);
+    assert.match(loaded.reason, /unknown profile: bsp/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("discoverProfiles ignores example json names", () => {
+  const root = tempRoot();
+  const pkg = join(root, "pkg");
+  try {
+    mkdirSync(join(pkg, "profiles"), { recursive: true });
+    writeJson(join(pkg, "profiles", "demo.example.json"), {
+      id: "demo.example",
+      plan: { command: "~/missing.md" },
+    });
+    writeFileSync(join(pkg, "profiles", "bsp.json.example"), "{}\n", "utf8");
+    const loaded = getProfile("demo.example", {
+      packageRoot: pkg,
+      workflowHome: root,
+      repoRoot: root,
+      homeDir: root,
+    });
+    assert.match(loaded.reason, /unknown profile: demo\.example/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

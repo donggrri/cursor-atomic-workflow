@@ -177,8 +177,8 @@ EXIT_CODE=1
 } >"$LOG_FILE"
 
 dry_run_agy() {
-  local bin line="agy --output-format text --mode accept-edits --dangerously-skip-permissions --print-timeout $AGY_TIMEOUT"
-  bin="$(resolve_bin agy agy.exe)" || die "agy not on PATH"
+  # Print the command only. Real runs still require agy via run_agy.
+  local line="agy --output-format text --mode accept-edits --dangerously-skip-permissions --print-timeout $AGY_TIMEOUT"
   local add_dir
   while IFS= read -r add_dir; do
     [[ -n "$add_dir" ]] || continue
