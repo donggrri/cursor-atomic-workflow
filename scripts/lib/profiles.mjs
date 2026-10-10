@@ -114,7 +114,7 @@ function listJson(dir, fs) {
   if (!fs.exists(dir)) return [];
   return fs
     .listDir(dir)
-    .filter((name) => name.endsWith(".json"))
+    .filter((name) => name.endsWith(".json") && !name.endsWith(".example.json"))
     .sort();
 }
 
