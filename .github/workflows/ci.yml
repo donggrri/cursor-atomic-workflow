@@ -37,6 +37,9 @@ jobs:
       - name: Check agents
         run: node scripts/check-agents.mjs
 
+      - name: Check bundled script copies
+        run: node scripts/sync-bundled.mjs --check
+
       # doctor exits 0 for warnings and also scans ~/.agents/skills and
       # ~/.cursor/skills. Fail only on this repository's bundled-script drift
       # and SKILL.md frontmatter. run-pipeline and live invoke-worker need
