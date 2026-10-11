@@ -211,7 +211,7 @@ node scripts/sync-bundled.mjs --check # 스킬 복사본이 어긋나면 실패
 node scripts/doctor.mjs               # 충돌, YAML frontmatter, 동기화·설치 상태 점검
 ```
 
-커맨드를 추가하려면 `disable-model-invocation: true`와 "사용자가 직접 호출할 때만 쓴다."로 끝나는 description을 넣어 `.cursor/skills/cursor-atomic-<이름>/SKILL.md`를 만들고 `npm test`를 실행한다.
+커맨드를 추가하려면 `disable-model-invocation: true`와 "사용자가 직접 호출할 때만 쓴다."로 끝나는 description을 넣어 `.cursor/skills/cursor-atomic-<이름>/SKILL.md`를 만들고 `npm test`를 실행한다. 예외: `cursor-atomic-lite`·`cursor-atomic-plan`은 메인 채팅 라우터용으로 **모델 호출 가능**(`disable-model-invocation` 없음, description에 슬래시+라우터 명시).
 
 ---
 

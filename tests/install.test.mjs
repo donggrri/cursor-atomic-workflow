@@ -21,6 +21,9 @@ import { checkAgents } from "../scripts/check-agents.mjs";
 const SKILLS = ".cursor/skills";
 const WORKFLOW = "cursor-atomic-workflow";
 
+/** 메인 채팅 라우터가 모델 스킬 호출로 불러올 수 있는 커맨드 스킬 */
+export const ROUTER_DISPATCH_COMMANDS = ["cursor-atomic-lite", "cursor-atomic-plan"];
+
 const COMMANDS = [
   "cursor-atomic-agy",
   "cursor-atomic-config",
@@ -53,11 +56,20 @@ test("legacy .cursor/commands is gone from the package", async () => {
   assert.equal(existsSync(".cursor/commands"), false);
 });
 
-test("command skills are user-invoked only and reference harness.md", async () => {
+test("command skills gate model invocation and reference harness.md", async () => {
   for (const name of COMMANDS) {
     const rel = join(SKILLS, name, "SKILL.md");
     const text = await read(rel);
-    assert.match(text, /disable-model-invocation:\s*true/, `${rel} must set disable-model-invocation`);
+    if (ROUTER_DISPATCH_COMMANDS.includes(name)) {
+      assert.doesNotMatch(
+        text,
+        /disable-model-invocation:\s*true/,
+        `${rel} must be model-invocable for main-chat router`,
+      );
+      assert.match(text, /메인 채팅|라우터/, `${rel} description must mention main-chat router`);
+    } else {
+      assert.match(text, /disable-model-invocation:\s*true/, `${rel} must set disable-model-invocation`);
+    }
     assert.equal(validateSkillFrontmatter(text, rel).valid, true, `${rel} frontmatter must be YAML safe`);
     assert.match(text, /# \//, `${rel} must title the slash command`);
     if (!["cursor-atomic-settings", "cursor-atomic-doctor"].includes(name)) {

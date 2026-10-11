@@ -1,12 +1,13 @@
 ---
 name: cursor-atomic-lite
-description: "단일 세션 경량 워크플로: 짧은 PLAN 작성·구현, 메모리 읽기/저장, 테스트로 마무리. 서브에이전트 없음. 사용자가 직접 호출할 때만 쓴다."
-disable-model-invocation: true
+description: "단일 세션 경량 워크플로: 짧은 PLAN·구현·메모리·테스트 마무리(서브에이전트 없음). /cursor-atomic-lite 또는 메인 채팅 라우터가 lite로 판정했을 때 따른다."
 metadata:
   argument-hint: "<의도>"
 ---
 
 # /cursor-atomic-lite
+
+`/cursor-atomic-lite` 슬래시, 또는 `.cursor/rules/atomic-router.mdc`가 **lite**로 라우팅한 메인 채팅 작업에서 이 스킬을 읽고 따른다.
 
 입력: 커맨드 뒤 텍스트(의도). 비어 있으면 현재 대화의 요청을 의도로 본다.
 

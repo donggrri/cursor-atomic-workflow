@@ -207,7 +207,7 @@ node scripts/sync-bundled.mjs --check # fail if the skill copies drifted
 node scripts/doctor.mjs               # collisions, YAML frontmatter, sync + install state
 ```
 
-To add a command, create `.cursor/skills/cursor-atomic-<name>/SKILL.md` with `disable-model-invocation: true` and a description ending in "사용자가 직접 호출할 때만 쓴다." (so it only runs when the user calls it), then run `npm test`.
+To add a command, create `.cursor/skills/cursor-atomic-<name>/SKILL.md` with `disable-model-invocation: true` and a description ending in "사용자가 직접 호출할 때만 쓴다." (so it only runs when the user calls it), then run `npm test`. Exception: `cursor-atomic-lite` and `cursor-atomic-plan` stay **model-invocable** for the main-chat router (no `disable-model-invocation`; description mentions slash + router).
 
 ---
 

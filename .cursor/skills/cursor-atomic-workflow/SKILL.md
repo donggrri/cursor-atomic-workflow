@@ -25,7 +25,7 @@ Cursor 프로젝트용 워크플로 패키지다. 커맨드 로직은 `.cursor/s
 
 1. 슬래시로 모드를 지정했으면 그 커맨드·스킬만 따른다.
 2. 코딩 작업이고 모드가 없으면 lite vs full을 고르고, 시작 전 한 줄 `라우팅: lite|full (이유: …)`를 남긴다.
-3. **lite** → `cursor-atomic-lite` 스킬. **full** → Phase 1 `/cursor-atomic-plan`(이후 기본 파이프라인). 질문·사소한 1~2파일 수정은 [references/routing.md](references/routing.md) 「직접 처리」.
+3. **lite** → `cursor-atomic-lite` 스킬(모델이 읽어 실행). **full** → `cursor-atomic-plan` 스킬 또는 `/cursor-atomic-plan`(이후 기본 파이프라인). 질문·사소한 1~2파일 수정은 [references/routing.md](references/routing.md) 「직접 처리」.
 4. lite 중 범위가 커지면 full로 에스컬레이션한다.
 
 **PLAN 위치 규칙** (템플릿 필드는 양쪽 동일. `PREFIX-<slug>.md` 파일명은 유지. 쓰기 전 슬러그 디렉토리를 만든다):

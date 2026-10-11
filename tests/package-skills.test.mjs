@@ -252,7 +252,8 @@ test("lite command skill is single-session without subagents", async () => {
   const body = await readFile(file, "utf8");
   const meta = parseFrontmatter(body, file);
   assert.equal(meta.name, "cursor-atomic-lite");
-  assert.equal(meta["disable-model-invocation"], "true");
+  assert.notEqual(meta["disable-model-invocation"], "true", `${file} must be model-invocable for router`);
+  assert.match(meta.description ?? "", /메인 채팅|라우터/, `${file} description must mention router`);
   assert.match(body, /서브에이전트/, `${file} must forbid subagents`);
   assert.match(body, /CURSOR_ATOMIC_WORKFLOW_HOME/, `${file} must respect workflow home`);
   assert.match(body, /memory\.mjs/, `${file} must use memory.mjs`);

@@ -11,6 +11,7 @@ test("atomic-router rule is always-applied and references lite vs full", async (
   const text = await readFile(ROUTER, "utf8");
   assert.match(text, /alwaysApply:\s*true/);
   assert.match(text, /cursor-atomic-lite/);
+  assert.match(text, /cursor-atomic-plan/);
   assert.match(text, /routing\.md/);
   assert.match(text, /라우팅:/);
 });
