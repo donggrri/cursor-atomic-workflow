@@ -9,7 +9,13 @@ import {
   checkHarnessInstall,
   validateSkillFrontmatter,
 } from "../scripts/doctor.mjs";
-import { install, parseInstallArgs, findLegacyCursorCommands } from "../scripts/install.mjs";
+import {
+  install,
+  parseInstallArgs,
+  findLegacyCursorCommands,
+  RULES_DIR,
+  ATOMIC_ROUTER_RULE,
+} from "../scripts/install.mjs";
 import { checkAgents } from "../scripts/check-agents.mjs";
 
 const SKILLS = ".cursor/skills";
@@ -90,6 +96,10 @@ test("installer copies skills and agents into a target project", async () => {
     );
     assert.equal(existsSync(join(target, ".cursor", "agents", "reviewer.md")), false);
     assert.ok(existsSync(join(target, ".cursor", "agents", "cursor-atomic-reviewer.md")));
+    assert.ok(
+      existsSync(join(target, RULES_DIR, ATOMIC_ROUTER_RULE)),
+      "atomic-router rule must be installed",
+    );
 
     const legacy = await findLegacyCursorCommands(target);
     assert.equal(legacy.length, 1);
@@ -97,6 +107,7 @@ test("installer copies skills and agents into a target project", async () => {
     const doctor = await checkHarnessInstall({ cwd: target, root: "." });
     assert.equal(doctor.skillsInstalled, true);
     assert.equal(doctor.commandSkills.length, COMMANDS.length);
+    assert.equal(doctor.routerRuleInstalled, true);
     assert.deepEqual(doctor.harnesses.cursor.agents.missing, []);
 
     const second = await install({ root: ".", target });

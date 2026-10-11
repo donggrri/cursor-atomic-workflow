@@ -34,6 +34,7 @@ Everything installs into the target Cursor project:
 | Command skills | `.cursor/skills/cursor-atomic-<name>/SKILL.md` | Each one is a slash command (`/cursor-atomic-plan`, …) and holds the command logic |
 | Workflow skill | `.cursor/skills/cursor-atomic-workflow/` | Orchestration docs (`CONTEXT.md`, `reference.md`, `workers.md`, `testing.md`, `models.md`), the Cursor harness adapter (`references/harness.md`), and bundled copies of `work-status.mjs` / `run-done.mjs` |
 | Subagents | `.cursor/agents/*.md` | 8 agents: `explorer`, `planner`, `plan-reviewer`, `tasker`, `worker`, `cursor-atomic-reviewer`, `tester`, `cli-delegate` |
+| Router rule | `.cursor/rules/atomic-router.mdc` | Always-on main-chat routing: pick **lite** vs **full** when the user does not name a slash command |
 | Runner scripts | `scripts/` | `install.mjs`, `run-pipeline.mjs`, `doctor.mjs`, `check-agents.mjs`, `work-status.mjs`, `run-done.mjs`, `lib/` |
 
 Requires Node `>=22.13`. `@cursor/sdk` is an optional dependency at the package root and powers the SDK adapter of the pipeline runner.
@@ -56,7 +57,7 @@ node scripts/install.mjs --target /path/to/project
 | `--skills-dir <path>` | Skills destination (default: `.cursor/skills`) |
 | `--force` | Overwrite existing files (otherwise they are kept) |
 | `--set-model <agent>=<model>` | Pin a phase model in the agent frontmatter (repeatable) |
-| `--no-skills` / `--no-agents` | Skip a component |
+| `--no-skills` / `--no-agents` / `--no-rules` | Skip a component |
 | `-h, --help` | Help |
 
 ```bash
@@ -88,6 +89,8 @@ node scripts/check-agents.mjs  # .cursor/agents models match scripts/lib/roles.m
 | Finish | Run tests vs plan done criteria; short summary | `/cursor-atomic-wrapup` for commit + STATUS |
 
 If lite hits **5+ files**, **DB/schema**, **auth/security**, or the plan outgrows a short list, stop and switch to `/cursor-atomic-plan` or `/cursor-atomic-run`.
+
+**Main chat (no slash command):** `install.mjs` copies `.cursor/rules/atomic-router.mdc` (`alwaysApply`). The agent judges lite vs full using the same signals (plus cross-module design and unclear requirements → full; small, local, well-specified → lite), posts one line `라우팅: lite|full (이유: …)`, and honors an explicit `/cursor-atomic-*` override. Details: workflow skill 「메인 채팅 라우팅」 and `references/routing.md`.
 
 Default full path: once **PLAN is confirmed**, the pipeline runner runs **plan-review** (critical PLAN critique) → task → execute → review automatically. Commit only happens with `/cursor-atomic-wrapup`.
 
