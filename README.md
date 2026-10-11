@@ -77,10 +77,23 @@ node scripts/check-agents.mjs  # .cursor/agents models match scripts/lib/roles.m
 
 ## 3. Usage
 
-Default: once **PLAN is confirmed**, the pipeline runner runs **plan-review** (critical PLAN critique) → task → execute → review automatically. Commit only happens with `/cursor-atomic-wrapup`.
+### Lite vs full workflow
+
+| | `/cursor-atomic-lite` | Full `/cursor-atomic-*` pipeline |
+|---|---|---|
+| Session | One parent session, **no subagents** | Explore → plan-review → task → worker → reviewer → tester (Task subagents or SDK runner) |
+| Best for | Small, bounded changes (typically **&lt;5 files**), no schema/auth/security work | Multi-file refactors, DB migrations, security, large plans, parallel workers |
+| Artifacts | Short `PLAN-<slug>.md` only (same global docs home) | `EXPLORE`, `PLAN`, `PLAN-REVIEW`, `TASKS`, `REVIEW`, evidence |
+| Memory | Read `memory.mjs context` at start; `propose --auto` at end | Same vault; optional `memory-curator` / pipeline capture |
+| Finish | Run tests vs plan done criteria; short summary | `/cursor-atomic-wrapup` for commit + STATUS |
+
+If lite hits **5+ files**, **DB/schema**, **auth/security**, or the plan outgrows a short list, stop and switch to `/cursor-atomic-plan` or `/cursor-atomic-run`.
+
+Default full path: once **PLAN is confirmed**, the pipeline runner runs **plan-review** (critical PLAN critique) → task → execute → review automatically. Commit only happens with `/cursor-atomic-wrapup`.
 
 | Command | Role | Output |
 |---|---|---|
+| `/cursor-atomic-lite` | Single-session plan → implement → memory → test wrapup (no subagents) | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md` |
 | `/cursor-atomic-explore` | Phase 0: explore the codebase and tech in advance (optional) | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/EXPLORE-<slug>.md` (legacy: `.docs/<slug>/`) |
 | `/cursor-atomic-plan` | Default pipeline after Phase 1 | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md` + TASKS/code/REVIEW automatically |
 | `/cursor-atomic-task` | Force Phase 2 only, or continue automatically | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/TASKS-<slug>.md` |

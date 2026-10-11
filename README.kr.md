@@ -77,10 +77,23 @@ node scripts/check-agents.mjs  # .cursor/agents 모델이 scripts/lib/roles.mjs�
 
 ## 3. 사용법
 
-기본: **PLAN만 확정하면** 러너가 **plan-review**(PLAN 비판 검토) → task → execute → review를 자동 실행한다. 커밋은 `/cursor-atomic-wrapup`일 때만.
+### Lite vs 전체 워크플로
+
+| | `/cursor-atomic-lite` | 전체 `/cursor-atomic-*` 파이프라인 |
+|---|---|---|
+| 세션 | 부모 한 세션, **서브에이전트 없음** | explore → plan-review → task → worker → reviewer → tester (Task 또는 SDK 러너) |
+| 적합 | 작고 범위가 분명한 변경(보통 **파일 5개 미만**), 스키마·인증·보안 작업 없음 | 다파일 리팩터, DB 마이그레이션, 보안, 큰 계획, 병렬 워커 |
+| 산출물 | 짧은 `PLAN-<slug>.md`만 (동일 전역 docs 홈) | EXPLORE, PLAN, PLAN-REVIEW, TASKS, REVIEW, evidence |
+| 메모리 | 시작 시 `memory.mjs context`, 끝에 `propose --auto` | 같은 볼트; `memory-curator`·파이프라인 캡처 선택 |
+| 마무리 | PLAN 완료 기준 대비 테스트·짧은 요약 | `/cursor-atomic-wrapup`으로 커밋 + STATUS |
+
+lite에서 **파일 5개 이상**, **DB/스키마**, **인증·보안**, 계획이 짧은 목록을 넘어가면 멈추고 `/cursor-atomic-plan` 또는 `/cursor-atomic-run`으로 전환한다.
+
+기본(전체): **PLAN만 확정하면** 러너가 **plan-review**(PLAN 비판 검토) → task → execute → review를 자동 실행한다. 커밋은 `/cursor-atomic-wrapup`일 때만.
 
 | 커맨드 | 역할 | 산출물 |
 |---|---|---|
+| `/cursor-atomic-lite` | 단일 세션: 짧은 PLAN → 구현 → 메모리 → 테스트 마무리 (서브에이전트 없음) | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md` |
 | `/cursor-atomic-explore` | Phase 0: 코드베이스 및 기술 사전 탐색 (선택) | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/EXPLORE-<slug>.md` (레거시: `.docs/<slug>/`) |
 | `/cursor-atomic-plan` | Phase 1 후 기본 파이프라인 | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/PLAN-<slug>.md` + 자동으로 TASKS/코드/REVIEW |
 | `/cursor-atomic-task` | Phase 2만 강제하거나 이어서 자동 | `~/.cursor-atomic-workflow/docs/{shortRepo}/{slug}/TASKS-<slug>.md` |

@@ -2,7 +2,7 @@
 name: cursor-atomic-workflow
 description: >-
   Runs cursor-atomic-workflow phases (explore, plan, task, execute, review, commit, status, config).
-  Use when the user invokes /cursor-atomic-explore, /cursor-atomic-plan, /cursor-atomic-task, /cursor-atomic-execute, /cursor-atomic-delegate, /cursor-atomic-agy,
+  Use when the user invokes /cursor-atomic-lite, /cursor-atomic-explore, /cursor-atomic-plan, /cursor-atomic-task, /cursor-atomic-execute, /cursor-atomic-delegate, /cursor-atomic-agy,
   /cursor-atomic-review, /cursor-atomic-wrapup, /cursor-atomic-status, /cursor-atomic-config, /cursor-atomic-settings, or mentions cursor-atomic-workflow or cursor-atomic-workflow.
 ---
 

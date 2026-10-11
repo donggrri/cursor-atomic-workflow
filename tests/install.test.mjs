@@ -22,6 +22,7 @@ const COMMANDS = [
   "cursor-atomic-doctor",
   "cursor-atomic-execute",
   "cursor-atomic-explore",
+  "cursor-atomic-lite",
   "cursor-atomic-models",
   "cursor-atomic-plan",
   "cursor-atomic-review",
